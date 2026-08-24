@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}Follow-ups -- BRM Territory Hub{% endblock %}
+{% block content %}
+<div class="page-header"><h1>Follow-up Tracker</h1></div>
+
+<form method="get" class="filters autofilter">
+  <select name="status">
+    <option value="open" {{ 'selected' if filters.status=='open' }}>Open</option>
+    <option value="done" {{ 'selected' if filters.status=='done' }}>Done</option>
+    <option value="all" {{ 'selected' if filters.status=='all' }}>All</option>
+  </select>
+  <select name="market">
+    <option value="">All markets</option>
+    {% for m in markets %}<option value="{{ m }}" {{ 'selected' if filters.market==m }}>{{ m }}</option>{% endfor %}
+  </select>
+</form>
+
+<div class="card">
+  {% if followups %}
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th></th><th>Account</th><th>Market</th><th>What</th><th>Contact</th><th>Due</th></tr></thead>
+    <tbody>
+      {% for f in followups %}
+      <tr id="followup-{{ f.id }}" class="followup-row {{ 'done' if f.status=='done' }} {{ 'overdue' if f.overdue }}">
+        <td><input type="checkbox" class="followup-toggle" data-id="{{ f.id }}" {{ 'checked' if f.status=='done' }}></td>
+        <td><a href="{{ url_for('account_detail', account_id=f.account_id) }}">{{ f.account_name }}</a></td>
+        <td><span class="badge-market">{{ f.market or 'Other' }}</span></td>
+        <td class="desc">{{ f.description }}</td>
+        <td>{{ f.contact_name or '--' }}</td>
+        <td>{{ f.due_date | dateshort if f.due_date else '--' }} {% if f.overdue %}<span class="pill pill-bad">overdue</span>{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}
+  <div class="empty">No follow-ups match those filters.</div>
+  {% endif %}
+</div>
+{% endblock %}

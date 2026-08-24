@@ -1,0 +1,159 @@
+{% extends "base.html" %}
+{% block title %}{{ account.name }} -- BRM Territory Hub{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>{{ account.name }}</h1>
+    <div class="subtitle">
+      {{ account.company_type or 'Type not set' }} &middot;
+      <span class="badge-market">{{ account.market or 'Other' }}</span>
+      {% if account.city %} &middot; {{ account.city }}{{ ', ' + account.state if account.state }}{% endif %}
+    </div>
+  </div>
+  <a href="{{ url_for('call_new', account_id=account.id) }}" class="btn">+ Log a Call</a>
+</div>
+
+<div class="grid grid-4 section">
+  <div class="card stat"><div class="value">{{ account.last_visit_date | dateshort if account.last_visit_date else 'Never' }}</div><div class="label">Last visit</div></div>
+  <div class="card stat"><div class="value">{{ account.days_since_visit if account.days_since_visit is not none else '--' }}</div><div class="label">Days since visit</div></div>
+  <div class="card stat"><div class="value">{{ account.total_visits }}</div><div class="label">Total visits</div></div>
+  <div class="card stat"><div class="value">{{ account.ytd_sales | money }}</div><div class="label">YTD sales ({{ account.yoy_variance | money }} YoY)</div></div>
+</div>
+
+<div class="two-col">
+  <div>
+    <div class="card section">
+      <h2>Sales by brand (YTD vs prior year)</h2>
+      {% if sales %}
+      <div class="table-wrap">
+      <table>
+        <thead><tr><th>Brand</th><th>{{ sales[0].current_label }}</th><th>{{ sales[0].prior_label }}</th><th>Variance</th></tr></thead>
+        <tbody>
+        {% for s in sales %}
+          <tr>
+            <td><a href="{{ url_for('brand_detail', brand_id=s.brand_id) }}">{{ s.brand_name }}</a></td>
+            <td>{{ s.current_ytd | money }}</td>
+            <td>{{ s.prior_ytd | money }}</td>
+            <td class="{{ 'good' if s.variance >= 0 else 'bad' }}">{{ s.variance | money }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      </div>
+      {% else %}
+      <div class="empty">No sales data imported for this account yet.</div>
+      {% endif %}
+    </div>
+
+    <div class="card section">
+      <h2>Visit history</h2>
+      {% if calls %}
+      <div class="timeline">
+        {% for c in calls %}
+        <div class="timeline-item">
+          <div class="meta">
+            <strong>{{ c.call_date | dateshort }}</strong>
+            {% if c.report_type %} &middot; {{ c.report_type }}{% endif %}
+            {% if c.brand_name %} &middot; <a href="{{ url_for('brand_detail', brand_id=c.brand_id) }}">{{ c.brand_name }}</a>{% endif %}
+            {% if c.contact_name %} &middot; with {{ c.contact_name }}{% endif %}
+            {% if c.source == 'manual' %}<span class="pill pill-neutral">manual</span>{% endif %}
+          </div>
+          {% if c.subject and c.subject != c.report_type %}<div class="small muted">{{ c.subject }}</div>{% endif %}
+          {% if c.notes %}<div class="notes">{{ c.notes }}</div>{% endif %}
+          {% if c.followup_date %}<div class="small" style="margin-top:4px;"><span class="pill pill-warn">follow up {{ c.followup_date | dateshort }}</span></div>{% endif %}
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="empty">No visits logged yet.</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <div>
+    <div class="card section">
+      <h2>Edit account</h2>
+      <form method="post" action="{{ url_for('account_edit', account_id=account.id) }}">
+        <div class="field"><label>Company type</label>
+          <select name="company_type">
+            <option value="">--</option>
+            {% for t in ['Contractor','Distributor','End Customer','Manufacturers Rep','Principal'] %}
+            <option {{ 'selected' if account.company_type==t }}>{{ t }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="field"><label>Market</label>
+          <select name="market">{% for m in markets %}<option {{ 'selected' if account.market==m }}>{{ m }}</option>{% endfor %}</select>
+        </div>
+        <div class="field"><label>Class</label><input type="text" name="class" value="{{ account['class'] or '' }}"></div>
+        <div class="field"><label>Category</label><input type="text" name="category" value="{{ account.category or '' }}"></div>
+        <div class="field"><label>Street</label><input type="text" name="street" value="{{ account.street or '' }}"></div>
+        <div class="field"><label>City</label><input type="text" name="city" value="{{ account.city or '' }}"></div>
+        <div class="field"><label>State</label><input type="text" name="state" value="{{ account.state or '' }}"></div>
+        <div class="field"><label>Zip</label><input type="text" name="zip" value="{{ account.zip or '' }}"></div>
+        <div class="field"><label>Phone</label><input type="text" name="phone" value="{{ account.phone or '' }}"></div>
+        <div class="field"><label>Website</label><input type="text" name="website" value="{{ account.website or '' }}"></div>
+        <div class="field"><label>Status</label><input type="text" name="status" value="{{ account.status or '' }}"></div>
+        <div class="field"><label>Notes</label><textarea name="notes">{{ account.notes or '' }}</textarea></div>
+        <button class="btn" type="submit">Save changes</button>
+      </form>
+    </div>
+
+    <div class="card section">
+      <h2>Contacts</h2>
+      {% for c in contacts %}
+      <div style="margin-bottom:10px; border-bottom:1px solid var(--border); padding-bottom:8px;">
+        <strong>{{ c.name }}</strong>{% if c.role %} <span class="muted small">-- {{ c.role }}</span>{% endif %}
+        <div class="small muted">{{ c.phone or '' }} {{ c.email or '' }}</div>
+        {% if c.notes %}<div class="small">{{ c.notes }}</div>{% endif %}
+      </div>
+      {% else %}
+      <div class="empty">No contacts yet.</div>
+      {% endfor %}
+      <details>
+        <summary style="cursor:pointer; font-weight:600; font-size:13px;">+ Add contact</summary>
+        <form method="post" action="{{ url_for('contact_new', account_id=account.id) }}" style="margin-top:10px;">
+          <div class="field"><label>Name</label><input type="text" name="name" required></div>
+          <div class="field"><label>Role</label><input type="text" name="role"></div>
+          <div class="field"><label>Phone</label><input type="text" name="phone"></div>
+          <div class="field"><label>Email</label><input type="text" name="email"></div>
+          <div class="field"><label>Notes</label><textarea name="notes"></textarea></div>
+          <button class="btn btn-small" type="submit">Add contact</button>
+        </form>
+      </details>
+    </div>
+
+    <div class="card section">
+      <h2>Follow-ups</h2>
+      {% for f in followups %}
+      <div id="followup-{{ f.id }}" class="followup-row {{ 'done' if f.status=='done' }}" style="margin-bottom:8px;">
+        <label class="small">
+          <input type="checkbox" class="followup-toggle" data-id="{{ f.id }}" {{ 'checked' if f.status=='done' }}>
+          <span class="desc">{{ f.description }}</span> -- {{ f.due_date | dateshort if f.due_date else 'no date' }}
+        </label>
+      </div>
+      {% else %}
+      <div class="empty">No follow-ups yet.</div>
+      {% endfor %}
+      <form method="post" action="{{ url_for('followup_new') }}" style="margin-top:10px;">
+        <input type="hidden" name="account_id" value="{{ account.id }}">
+        <div class="field"><label>New follow-up</label><input type="text" name="description" placeholder="What needs to happen?" required></div>
+        <div class="field"><label>Due date</label><input type="date" name="due_date"></div>
+        <button class="btn btn-small" type="submit">Add follow-up</button>
+      </form>
+    </div>
+
+    <div class="card section">
+      <h2>News tagged to this account</h2>
+      {% for n in account_news %}
+      <div class="news-item">
+        <div class="title">{% if n.url %}<a href="{{ n.url }}" target="_blank" rel="noopener">{{ n.title }}</a>{% else %}{{ n.title }}{% endif %}</div>
+        <div class="meta">{{ n.source }}</div>
+      </div>
+      {% else %}
+      <div class="empty small">No news tagged yet.</div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}Log a Call -- BRM Territory Hub{% endblock %}
+{% block content %}
+<div class="page-header"><h1>Log a Call</h1></div>
+
+<div class="card" style="max-width:640px;">
+  <form method="post">
+    <div class="field">
+      <label>Account</label>
+      <select name="account_id" id="account_id">
+        <option value="">-- choose an account --</option>
+        {% for a in accounts %}
+        <option value="{{ a.id }}" {{ 'selected' if preselect_account==a.id }}>{{ a.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="field">
+      <label>...or a brand-new account</label>
+      <input type="text" name="new_account_name" placeholder="Only if not in the list above">
+    </div>
+
+    <div class="field">
+      <label>Contact</label>
+      <select name="contact_id" id="contact_id">
+        <option value="">-- none / new --</option>
+        {% for c in contacts %}<option value="{{ c.id }}">{{ c.name }}{% if c.role %} ({{ c.role }}){% endif %}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="field">
+      <label>...or a new contact name</label>
+      <input type="text" name="new_contact_name">
+    </div>
+
+    <div class="form-grid">
+      <div class="field"><label>Date</label><input type="date" name="call_date" value="{{ today }}"></div>
+      <div class="field">
+        <label>Report type</label>
+        <select name="report_type">
+          <option>Contractor Call Report</option>
+          <option>Distributor Call Report</option>
+          <option>Phone Conversation</option>
+          <option>Email Communication</option>
+          <option>Job Site Visit</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Brand / manufacturer discussed</label>
+      <select name="brand_id">
+        <option value="">-- none --</option>
+        {% for b in brands %}<option value="{{ b.id }}">{{ b.name }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="field"><label>...or a new brand</label><input type="text" name="new_brand_name"></div>
+
+    <div class="field"><label>Subject (short)</label><input type="text" name="subject" placeholder="e.g. Introduced new VersaBoost system"></div>
+    <div class="field"><label>Attendees</label><input type="text" name="attendees" placeholder="Names, comma separated"></div>
+    <div class="field"><label>Notes</label><textarea name="notes" placeholder="What happened, what they said, what's stocked..."></textarea></div>
+
+    <div class="form-grid">
+      <div class="field"><label>Follow-up date (optional)</label><input type="date" name="followup_date"></div>
+      <div class="field"><label>Follow-up notes</label><input type="text" name="followup_notes"></div>
+    </div>
+
+    <div style="display:flex; gap:10px; align-items:center;">
+      <button class="btn" type="submit">Save call</button>
+      <label class="small"><input type="checkbox" name="log_another" value="1"> Log another for this account next</label>
+    </div>
+  </form>
+</div>
+{% endblock %}

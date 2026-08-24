@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}Import -- BRM Territory Hub{% endblock %}
+{% block content %}
+<div class="page-header"><h1>Import Data</h1></div>
+
+<div class="small muted section">
+  Re-import a fresh monthly export any time. Existing contacts, notes, and follow-ups you've added
+  are never overwritten -- imports only fill in blank fields and add new calls/sales snapshots.
+  Sales imports never replace history: each import adds a new snapshot, so trends stay intact.
+</div>
+
+<div class="grid grid-3 section">
+  <div class="card">
+    <h2>Companies</h2>
+    <p class="small muted">Account master list (name, address, class, category...).</p>
+    <form method="post" action="{{ url_for('import_run', kind='companies') }}" enctype="multipart/form-data">
+      <div class="field"><input type="file" name="file" accept=".xlsx" required></div>
+      <button class="btn btn-small" type="submit">Import Companies file</button>
+    </form>
+  </div>
+  <div class="card">
+    <h2>Activity Journal</h2>
+    <p class="small muted">Your call history export. Only rows where Sales Rep = Nathen Bitzer are imported.</p>
+    <form method="post" action="{{ url_for('import_run', kind='journal') }}" enctype="multipart/form-data">
+      <div class="field"><input type="file" name="file" accept=".xlsx" required></div>
+      <button class="btn btn-small" type="submit">Import Journal file</button>
+    </form>
+  </div>
+  <div class="card">
+    <h2>Sales Numbers</h2>
+    <p class="small muted">Account &rarr; brand YTD / prior-YTD / variance export.</p>
+    <form method="post" action="{{ url_for('import_run', kind='sales') }}" enctype="multipart/form-data">
+      <div class="field"><input type="file" name="file" accept=".xlsx" required></div>
+      <button class="btn btn-small" type="submit">Import Sales file</button>
+    </form>
+  </div>
+</div>
+
+<div class="card">
+  <h2>Import history</h2>
+  {% if batches %}
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>When</th><th>Type</th><th>File</th><th>Summary</th></tr></thead>
+    <tbody>
+    {% for b in batches %}
+      <tr>
+        <td>{{ b.imported_at }}</td>
+        <td>{{ b.batch_type }}</td>
+        <td>{{ b.filename }}</td>
+        <td class="small">{{ b.summary_json }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}
+  <div class="empty">No imports yet.</div>
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,22 @@
+# ---- Confidential business data: never commit any of this ----
+data/
+*.db
+*.sqlite
+*.sqlite3
+data/imports/*
+data/backups/*
+!data/imports/.gitkeep
+!data/backups/.gitkeep
+
+# ---- Python ----
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.egg-info/
+
+# ---- OS / editor ----
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

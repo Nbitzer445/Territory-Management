@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% block title %}Accounts -- BRM Territory Hub{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Accounts</h1>
+    <div class="subtitle">{{ accounts | length }} account(s)</div>
+  </div>
+</div>
+
+<form method="get" class="filters autofilter">
+  <input type="text" name="q" placeholder="Search accounts..." value="{{ filters.q }}">
+  <select name="market">
+    <option value="">All markets</option>
+    {% for m in markets %}<option value="{{ m }}" {{ 'selected' if filters.market==m }}>{{ m }}</option>{% endfor %}
+  </select>
+  <select name="company_type">
+    <option value="">All types</option>
+    {% for t in company_types %}<option value="{{ t }}" {{ 'selected' if filters.company_type==t }}>{{ t }}</option>{% endfor %}
+  </select>
+  <select name="brand_id">
+    <option value="">Any brand</option>
+    {% for b in brands %}<option value="{{ b.id }}" {{ 'selected' if filters.brand_id==b.id }}>{{ b.name }}</option>{% endfor %}
+  </select>
+  <select name="sort">
+    <option value="name" {{ 'selected' if filters.sort=='name' }}>Sort: Name</option>
+    <option value="days_since_visit" {{ 'selected' if filters.sort=='days_since_visit' }}>Sort: Days since visit</option>
+    <option value="ytd_sales" {{ 'selected' if filters.sort=='ytd_sales' }}>Sort: YTD sales</option>
+    <option value="yoy_variance" {{ 'selected' if filters.sort=='yoy_variance' }}>Sort: YoY variance (worst first)</option>
+  </select>
+  <button class="btn btn-secondary btn-small" type="submit">Filter</button>
+  <a href="{{ url_for('accounts_list') }}" class="small">Clear</a>
+</form>
+
+<div class="card" style="margin-bottom:16px;">
+  <details>
+    <summary style="cursor:pointer; font-weight:600; font-size:14px;">+ Add an account manually</summary>
+    <form method="post" action="{{ url_for('account_new') }}" class="form-grid" style="margin-top:12px;">
+      <div class="field"><label>Name</label><input type="text" name="name" required></div>
+      <div class="field"><label>City</label><input type="text" name="city"></div>
+      <div class="field">
+        <label>Company type</label>
+        <select name="company_type">
+          <option value="">--</option>
+          <option>Contractor</option><option>Distributor</option><option>End Customer</option>
+          <option>Manufacturers Rep</option><option>Principal</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Market</label>
+        <select name="market"><option value="">Auto-detect</option>{% for m in markets %}<option value="{{ m }}">{{ m }}</option>{% endfor %}</select>
+      </div>
+      <div><button class="btn" type="submit">Add account</button></div>
+    </form>
+  </details>
+</div>
+
+<div class="card">
+  <div class="table-wrap">
+  <table>
+    <thead>
+      <tr><th>Account</th><th>Type</th><th>Market</th><th>Last visit</th><th>Days since</th><th>Visits</th><th>YTD sales</th><th>YoY var.</th></tr>
+    </thead>
+    <tbody>
+      {% for a in accounts %}
+      <tr>
+        <td><a href="{{ url_for('account_detail', account_id=a.id) }}">{{ a.name }}</a></td>
+        <td>{{ a.company_type or '--' }}</td>
+        <td><span class="badge-market">{{ a.market or 'Other' }}</span></td>
+        <td>{{ a.last_visit_date | dateshort if a.last_visit_date else 'Never' }}</td>
+        <td>{{ a.days_since_visit if a.days_since_visit is not none else '--' }}</td>
+        <td>{{ a.total_visits }}</td>
+        <td>{{ a.ytd_sales | money }}</td>
+        <td class="{{ 'good' if a.yoy_variance >= 0 else 'bad' }}">{{ a.yoy_variance | money }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="8" class="empty">No accounts match those filters yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
+{% endblock %}

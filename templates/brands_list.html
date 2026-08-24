@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Brands -- BRM Territory Hub{% endblock %}
+{% block content %}
+<div class="page-header"><h1>Manufacturers / Brands</h1></div>
+<div class="card">
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>Brand</th><th>Accounts buying</th><th>Calls logged</th><th>YTD sales</th><th>Prior YTD</th><th>Variance</th></tr></thead>
+    <tbody>
+      {% for b in brands %}
+      <tr>
+        <td><a href="{{ url_for('brand_detail', brand_id=b.id) }}">{{ b.name }}</a>{% if b.category=='admin' %} <span class="pill pill-neutral">admin</span>{% endif %}</td>
+        <td>{{ b.account_count }}</td>
+        <td>{{ b.call_count }}</td>
+        <td>{{ b.ytd_sales | money }}</td>
+        <td>{{ b.prior_ytd_sales | money }}</td>
+        <td class="{{ 'good' if b.variance >= 0 else 'bad' }}">{{ b.variance | money }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="6" class="empty">No brands yet -- import your journal or sales file.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
+{% endblock %}

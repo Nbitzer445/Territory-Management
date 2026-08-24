@@ -1,0 +1,156 @@
+{% extends "base.html" %}
+{% block title %}Dashboard -- BRM Territory Hub{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Territory Dashboard</h1>
+    <div class="subtitle">Nebraska &amp; Iowa -- your single source of truth</div>
+  </div>
+  <a href="{{ url_for('call_new') }}" class="btn">+ Log a Call</a>
+</div>
+
+<div class="grid grid-4 section">
+  <div class="card stat">
+    <div class="value">{{ stats.total_accounts }}</div>
+    <div class="label">Accounts</div>
+  </div>
+  <div class="card stat">
+    <div class="value">{{ stats.open_followups }}</div>
+    <div class="label">Open follow-ups</div>
+  </div>
+  <div class="card stat">
+    <div class="value">{{ stats.total_ytd | money }}</div>
+    <div class="label">Territory YTD sales</div>
+  </div>
+  <div class="card stat">
+    <div class="value {{ 'good' if stats.total_variance >= 0 else 'bad' }}">{{ stats.total_variance | money }}</div>
+    <div class="label">YoY variance ({{ stats.total_calls }} calls logged)</div>
+  </div>
+</div>
+
+<div class="two-col section">
+  <div>
+    <div class="card section">
+      <div class="page-header" style="margin-bottom:8px;">
+        <h2 class="mt0">Follow-ups due this week</h2>
+        <a href="{{ url_for('followups_list') }}" class="small">View all &rarr;</a>
+      </div>
+      {% if due_this_week %}
+      <div class="table-wrap">
+      <table>
+        <thead><tr><th></th><th>Account</th><th>What</th><th>Due</th></tr></thead>
+        <tbody>
+          {% for f in due_this_week %}
+          <tr id="followup-{{ f.id }}" class="followup-row {{ 'overdue' if f.overdue }}">
+            <td><input type="checkbox" class="followup-toggle" data-id="{{ f.id }}"></td>
+            <td><a href="{{ url_for('account_detail', account_id=f.account_id) }}">{{ f.account_name }}</a></td>
+            <td class="desc">{{ f.description }}</td>
+            <td>{{ f.due_date | dateshort }} {% if f.overdue %}<span class="pill pill-bad">overdue</span>{% endif %}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      </div>
+      {% else %}
+      <div class="empty">Nothing due this week. Nice.</div>
+      {% endif %}
+    </div>
+
+    <div class="card section">
+      <div class="page-header" style="margin-bottom:8px;">
+        <h2 class="mt0">Accounts overdue for a visit</h2>
+        <a href="{{ url_for('accounts_list', sort='days_since_visit') }}" class="small">View all &rarr;</a>
+      </div>
+      {% if overdue_visits %}
+      <div class="table-wrap">
+      <table>
+        <thead><tr><th>Account</th><th>Market</th><th>Last visit</th><th>Days since</th><th>YTD sales</th></tr></thead>
+        <tbody>
+          {% for a in overdue_visits %}
+          <tr>
+            <td><a href="{{ url_for('account_detail', account_id=a.id) }}">{{ a.name }}</a></td>
+            <td><span class="badge-market">{{ a.market or 'Other' }}</span></td>
+            <td>{{ a.last_visit_date | dateshort if a.last_visit_date else 'Never' }}</td>
+            <td>{{ a.days_since_visit if a.days_since_visit is not none else '--' }}</td>
+            <td>{{ a.ytd_sales | money }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      </div>
+      {% else %}
+      <div class="empty">Everyone's been visited recently.</div>
+      {% endif %}
+    </div>
+
+    <div class="card section">
+      <h2>Biggest YoY movers</h2>
+      <div class="grid grid-2">
+        <div>
+          <h3>Growth</h3>
+          {% for m in movers.growth %}
+          <div class="small" style="margin-bottom:6px;">
+            <a href="{{ url_for('account_detail', account_id=m.account_id) }}">{{ m.account_name }}</a>
+            <span class="muted">-- {{ m.brand_name }}</span>
+            <span class="pill pill-good">{{ m.variance | money }}</span>
+          </div>
+          {% else %}<div class="muted small">No data yet.</div>{% endfor %}
+        </div>
+        <div>
+          <h3>Decline (go save these)</h3>
+          {% for m in movers.decline %}
+          <div class="small" style="margin-bottom:6px;">
+            <a href="{{ url_for('account_detail', account_id=m.account_id) }}">{{ m.account_name }}</a>
+            <span class="muted">-- {{ m.brand_name }}</span>
+            <span class="pill pill-bad">{{ m.variance | money }}</span>
+          </div>
+          {% else %}<div class="muted small">No data yet.</div>{% endfor %}
+        </div>
+      </div>
+    </div>
+
+    <div class="card section">
+      <h2>Neglected revenue -- meaningful sales, no recent visit</h2>
+      {% if neglected %}
+      <div class="table-wrap">
+      <table>
+        <thead><tr><th>Account</th><th>Market</th><th>Days since visit</th><th>YTD sales</th></tr></thead>
+        <tbody>
+        {% for a in neglected %}
+          <tr>
+            <td><a href="{{ url_for('account_detail', account_id=a.id) }}">{{ a.name }}</a></td>
+            <td><span class="badge-market">{{ a.market or 'Other' }}</span></td>
+            <td>{{ a.days_since_visit if a.days_since_visit is not none else 'Never' }}</td>
+            <td>{{ a.ytd_sales | money }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      </div>
+      {% else %}
+      <div class="empty">Nothing flagged.</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <div>
+    <div class="card">
+      <div class="page-header" style="margin-bottom:8px;">
+        <h2 class="mt0">Market &amp; Manufacturer News</h2>
+      </div>
+      <div class="small muted" style="margin-bottom:10px;">
+        {% if news_last_refresh %}Last refreshed {{ news_last_refresh }}{% else %}Not refreshed yet{% endif %}
+      </div>
+      {% for n in news_items %}
+      <div class="news-item">
+        <div class="title">{% if n.url %}<a href="{{ n.url }}" target="_blank" rel="noopener">{{ n.title }}</a>{% else %}{{ n.title }}{% endif %}</div>
+        <div class="meta">{{ n.source }} <span class="tag">{{ n.category }}</span></div>
+      </div>
+      {% else %}
+      <div class="empty">No news yet -- visit the News page to refresh.</div>
+      {% endfor %}
+      <div style="margin-top:10px;"><a href="{{ url_for('news_page') }}">Go to full news feed &rarr;</a></div>
+    </div>
+  </div>
+</div>
+{% endblock %}

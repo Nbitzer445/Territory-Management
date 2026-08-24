@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}BRM Territory Hub{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <link rel="icon" href="data:,">
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a class="brand" href="{{ url_for('dashboard') }}">BRM Territory Hub</a>
+      <nav class="mainnav">
+        <a href="{{ url_for('dashboard') }}" class="{{ 'active' if request.endpoint=='dashboard' }}">Dashboard</a>
+        <a href="{{ url_for('accounts_list') }}" class="{{ 'active' if request.endpoint in ('accounts_list','account_detail') }}">Accounts</a>
+        <a href="{{ url_for('call_new') }}" class="{{ 'active' if request.endpoint=='call_new' }}">Log a Call</a>
+        <a href="{{ url_for('followups_list') }}" class="{{ 'active' if request.endpoint=='followups_list' }}">Follow-ups</a>
+        <a href="{{ url_for('brands_list') }}" class="{{ 'active' if request.endpoint in ('brands_list','brand_detail') }}">Brands</a>
+        <a href="{{ url_for('news_page') }}" class="{{ 'active' if request.endpoint=='news_page' }}">News</a>
+        <a href="{{ url_for('import_page') }}" class="{{ 'active' if request.endpoint=='import_page' }}">Import</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="flash-stack">
+          {% for category, message in messages %}
+            <div class="flash flash-{{ category }}">{{ message }}</div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+    {% block content %}{% endblock %}
+  </main>
+
+  <script src="{{ url_for('static', filename='app.js') }}"></script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

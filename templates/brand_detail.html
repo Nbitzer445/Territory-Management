@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}{{ brand.name }} -- BRM Territory Hub{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>{{ brand.name }}</h1>
+    <div class="subtitle">Territory performance for this line</div>
+  </div>
+</div>
+
+<div class="grid grid-3 section">
+  <div class="card stat"><div class="value">{{ brand.ytd_sales | money }}</div><div class="label">Territory YTD</div></div>
+  <div class="card stat"><div class="value {{ 'good' if brand.variance >= 0 else 'bad' }}">{{ brand.variance | money }}</div><div class="label">YoY variance</div></div>
+  <div class="card stat"><div class="value">{{ brand.accounts | length }}</div><div class="label">Accounts buying</div></div>
+</div>
+
+<div class="two-col">
+  <div class="card section">
+    <h2>Accounts buying {{ brand.name }}</h2>
+    {% if brand.accounts %}
+    <div class="table-wrap">
+    <table>
+      <thead><tr><th>Account</th><th>Market</th><th>YTD</th><th>Prior YTD</th><th>Variance</th></tr></thead>
+      <tbody>
+        {% for a in brand.accounts %}
+        <tr>
+          <td><a href="{{ url_for('account_detail', account_id=a.account_id) }}">{{ a.account_name }}</a></td>
+          <td><span class="badge-market">{{ a.market or 'Other' }}</span></td>
+          <td>{{ a.current_ytd | money }}</td>
+          <td>{{ a.prior_ytd | money }}</td>
+          <td class="{{ 'good' if a.variance >= 0 else 'bad' }}">{{ a.variance | money }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    {% else %}
+    <div class="empty">No sales data for this brand yet.</div>
+    {% endif %}
+  </div>
+
+  <div class="card section">
+    <h2>News for {{ brand.name }}</h2>
+    {% for n in brand_news %}
+    <div class="news-item">
+      <div class="title">{% if n.url %}<a href="{{ n.url }}" target="_blank" rel="noopener">{{ n.title }}</a>{% else %}{{ n.title }}{% endif %}</div>
+      <div class="meta">{{ n.source }}</div>
+    </div>
+    {% else %}
+    <div class="empty small">No news tagged to this brand yet. Refresh or add news from the News page.</div>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

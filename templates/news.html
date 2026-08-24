@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% block title %}News -- BRM Territory Hub{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Market &amp; Manufacturer News</h1>
+    <div class="subtitle">
+      {% if last_refresh %}Last refreshed {{ last_refresh }}{% else %}Never refreshed{% endif %} &middot;
+      commodity prices, manufacturer moves, and market/demand signals for your lines
+    </div>
+  </div>
+  <form method="post" action="{{ url_for('news_refresh') }}">
+    <button class="btn" type="submit">Refresh now</button>
+  </form>
+</div>
+
+<div class="small muted section">
+  Live refresh searches public news (Google News) for each brand you carry plus commodity/market terms
+  (copper, steel, PVC, plumbing &amp; HVAC distribution, construction demand). Only those short search
+  terms ever go out over the network -- none of your account or sales data is included.
+</div>
+
+<div class="filters">
+  <a href="{{ url_for('news_page') }}" class="pill {{ 'pill-good' if not category else 'pill-neutral' }}">All</a>
+  {% for cat in ['commodity','manufacturer','market','demand','manual'] %}
+  <a href="{{ url_for('news_page', category=cat) }}" class="pill {{ 'pill-good' if category==cat else 'pill-neutral' }}">{{ cat }}</a>
+  {% endfor %}
+</div>
+
+<div class="two-col">
+  <div class="card">
+    {% for n in items %}
+    <div class="news-item">
+      <div class="title">{% if n.url %}<a href="{{ n.url }}" target="_blank" rel="noopener">{{ n.title }}</a>{% else %}{{ n.title }}{% endif %}</div>
+      <div class="meta">{{ n.source or 'Manual entry' }} {% if n.published_at %}&middot; {{ n.published_at }}{% endif %} <span class="tag">{{ n.category }}</span></div>
+      {% if n.summary %}<div class="summary">{{ n.summary | truncate(220) }}</div>{% endif %}
+      <details style="margin-top:6px;">
+        <summary class="small" style="cursor:pointer;">Tag to account / brand</summary>
+        <form method="post" action="{{ url_for('news_link', news_id=n.id) }}" style="margin-top:6px; display:flex; gap:6px; flex-wrap:wrap;">
+          <select name="account_id" class="small">
+            <option value="">-- account --</option>
+            {% for a in accounts %}<option value="{{ a.id }}">{{ a.name }}</option>{% endfor %}
+          </select>
+          <select name="brand_id" class="small">
+            <option value="">-- brand --</option>
+            {% for b in brands %}<option value="{{ b.id }}">{{ b.name }}</option>{% endfor %}
+          </select>
+          <button class="btn btn-small btn-secondary" type="submit">Save tag</button>
+        </form>
+      </details>
+    </div>
+    {% else %}
+    <div class="empty">No news yet. Click "Refresh now" to pull the latest, or add one manually.</div>
+    {% endfor %}
+  </div>
+
+  <div>
+    <div class="card">
+      <h2>Add a news item manually</h2>
+      <div class="small muted" style="margin-bottom:10px;">Paste in anything relevant -- an article, an internal note, a price alert.</div>
+      <form method="post" action="{{ url_for('news_manual') }}">
+        <div class="field"><label>Title</label><input type="text" name="title" required></div>
+        <div class="field"><label>URL (optional)</label><input type="text" name="url"></div>
+        <div class="field"><label>Source</label><input type="text" name="source" placeholder="e.g. Plumbing & Mechanical Mag"></div>
+        <div class="field"><label>Summary / notes</label><textarea name="summary"></textarea></div>
+        <div class="field">
+          <label>Category</label>
+          <select name="category">
+            <option value="commodity">Commodity price</option>
+            <option value="manufacturer">Manufacturer news</option>
+            <option value="market">Market / industry action</option>
+            <option value="demand">Construction / demand</option>
+            <option value="manual" selected>Other</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Tag to account (optional)</label>
+          <select name="account_id"><option value="">--</option>{% for a in accounts %}<option value="{{ a.id }}">{{ a.name }}</option>{% endfor %}</select>
+        </div>
+        <div class="field">
+          <label>Tag to brand (optional)</label>
+          <select name="brand_id"><option value="">--</option>{% for b in brands %}<option value="{{ b.id }}">{{ b.name }}</option>{% endfor %}</select>
+        </div>
+        <button class="btn" type="submit">Add news item</button>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
