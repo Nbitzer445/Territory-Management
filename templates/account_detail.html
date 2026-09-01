@@ -8,6 +8,9 @@
       {{ account.company_type or 'Type not set' }} &middot;
       <span class="badge-market">{{ account.market or 'Other' }}</span>
       {% if account.city %} &middot; {{ account.city }}{{ ', ' + account.state if account.state }}{% endif %}
+      {% if account.group_name %}
+      &middot; part of <a href="{{ url_for('group_detail', group_id=account.group_id) }}">{{ account.group_name }}</a>
+      {% endif %}
     </div>
   </div>
   <a href="{{ url_for('call_new', account_id=account.id) }}" class="btn">+ Log a Call</a>
@@ -44,6 +47,16 @@
   <div>
     <div class="card section">
       <h2>Sales by brand (YTD vs prior year)</h2>
+      {% if account.group_name %}
+      <div class="small muted" style="margin-bottom:10px;">
+        These are the dollars booked to <em>this branch</em>. Because
+        <a href="{{ url_for('group_detail', group_id=account.group_id) }}">{{ account.group_name }}</a>
+        buys as one account, the meaningful figure is the group's combined
+        <strong>{{ account.group_ytd_sales | money }}</strong> YTD
+        ({{ account.group_yoy_variance | money }} YoY) -- a PO raised at one branch and
+        transferred to another lands all the revenue in one place.
+      </div>
+      {% endif %}
       {% if sales %}
       <div class="table-wrap">
       <table>
@@ -156,6 +169,25 @@
         <div class="field"><label>Status</label><input type="text" name="status" value="{{ account.status or '' }}"></div>
         <div class="field"><label>Notes</label><textarea name="notes">{{ account.notes or '' }}</textarea></div>
         <button class="btn" type="submit">Save changes</button>
+      </form>
+    </div>
+
+    <div class="card section">
+      <h2>Buying group</h2>
+      <div class="small muted" style="margin-bottom:10px;">
+        Put branches that share POs into one group so their combined number is used.
+      </div>
+      <form method="post" action="{{ url_for('account_set_group', account_id=account.id) }}">
+        <div class="field">
+          <select name="group_id">
+            <option value="">-- not in a group --</option>
+            {% for g in all_groups %}
+            <option value="{{ g.id }}" {{ 'selected' if account.group_id==g.id }}>{{ g.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <button class="btn btn-small" type="submit">Save group</button>
+        <a href="{{ url_for('groups_list') }}" class="small" style="margin-left:8px;">Manage groups</a>
       </form>
     </div>
 

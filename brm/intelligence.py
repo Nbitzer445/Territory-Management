@@ -44,9 +44,22 @@ def suggest_tier(ytd_sales):
     return "D"
 
 
+def relationship_sales(account):
+    """The revenue this relationship is really worth.
+
+    For a branch in a buying group that's the group's combined YTD, not the
+    branch's own line: a chain that raises its POs from one location leaves
+    sister branches showing almost nothing while the relationship there is
+    worth the whole group's book.
+    """
+    if account.get("group_ytd_sales") is not None:
+        return account["group_ytd_sales"]
+    return account.get("ytd_sales") or 0
+
+
 def effective_tier(account):
-    """Hand-set tier wins; otherwise derive from sales."""
-    return (account.get("tier") or "").strip().upper() or suggest_tier(account.get("ytd_sales"))
+    """Hand-set tier wins; otherwise derive from sales (group-combined if grouped)."""
+    return (account.get("tier") or "").strip().upper() or suggest_tier(relationship_sales(account))
 
 
 def target_cadence(account):
@@ -76,10 +89,14 @@ def compute_priority(account, max_ytd=None, followup_counts=None, dormant_info=N
     ytd = account.get("ytd_sales") or 0
     variance = account.get("yoy_variance") or 0
     prior = account.get("prior_ytd_sales") or 0
+    # Weight this stop by what the whole relationship is worth, not just what
+    # happens to be booked against this branch.
+    stake = relationship_sales(account)
+    grouped = account.get("group_id") is not None
 
     # 1. Cadence -------------------------------------------------------------
     if days is None:
-        if ytd > 0:
+        if stake > 0:
             score += 60
             reasons.append("never visited but buying")
         else:
@@ -98,13 +115,24 @@ def compute_priority(account, max_ytd=None, followup_counts=None, dormant_info=N
 
     # 2. Revenue at stake ----------------------------------------------------
     # Log-scaled so a $500k account doesn't drown out everything else.
-    if ytd > 0 and max_ytd:
-        pts = (math.log10(ytd + 1) / math.log10(max_ytd + 1)) * W_REVENUE_MAX
+    if stake > 0 and max_ytd:
+        pts = (math.log10(stake + 1) / math.log10(max_ytd + 1)) * W_REVENUE_MAX
         score += pts
-        if ytd >= 50000:
-            reasons.append(f"${ytd:,.0f} YTD at stake")
+        if stake >= 50000:
+            if grouped:
+                reasons.append(
+                    f"${stake:,.0f} YTD at stake across {account.get('group_name')} "
+                    f"(${ytd:,.0f} booked to this branch)"
+                )
+            else:
+                reasons.append(f"${stake:,.0f} YTD at stake")
 
     # 3. YoY erosion ---------------------------------------------------------
+    # For a grouped branch, judge erosion on the group's combined trend --
+    # a branch-level swing is usually just where the PO landed this year.
+    if grouped:
+        variance = account.get("group_yoy_variance") or 0
+        prior = (account.get("group_ytd_sales") or 0) - variance
     if variance < 0 and prior > 0:
         pct_drop = abs(variance) / prior
         pts = min(pct_drop, 1.0) * W_DECLINE_MAX
@@ -112,7 +140,8 @@ def compute_priority(account, max_ytd=None, followup_counts=None, dormant_info=N
         if abs(variance) < 1000:
             pts *= 0.3
         score += pts
-        reasons.append(f"down ${abs(variance):,.0f} ({pct_drop * 100:.0f}%) vs last year")
+        where = f" across {account.get('group_name')}" if grouped else ""
+        reasons.append(f"down ${abs(variance):,.0f} ({pct_drop * 100:.0f}%) vs last year{where}")
 
     # 4. Owed follow-ups -----------------------------------------------------
     if followup_counts:
@@ -153,7 +182,7 @@ def compute_priority(account, max_ytd=None, followup_counts=None, dormant_info=N
 def priority_for_account(conn, account):
     """Score a single account exactly the way the Plan page would."""
     all_accounts = queries.list_accounts(conn)
-    max_ytd = max((a.get("ytd_sales") or 0) for a in all_accounts) if all_accounts else 1
+    max_ytd = max(relationship_sales(a) for a in all_accounts) if all_accounts else 1
     fu = _followup_counts_by_account(conn).get(account["id"])
     dormant = {d["account_id"]: d for d in dormant_branches(conn)}
     return compute_priority(
@@ -187,7 +216,7 @@ def prioritized_accounts(conn, market=None, tier=None, limit=None, include_zero_
     accounts = queries.list_accounts(conn, market=market)
     if not accounts:
         return []
-    max_ytd = max((a.get("ytd_sales") or 0) for a in accounts) or 1
+    max_ytd = max(relationship_sales(a) for a in accounts) or 1
     followups = _followup_counts_by_account(conn)
     dormant = {d["account_id"]: d for d in dormant_branches(conn)}
 
@@ -335,17 +364,27 @@ def whitespace_for_account(conn, account_id, min_peer_buyers=2, limit=12):
         return []
 
     all_accounts = {a["id"]: a for a in queries.list_accounts(conn)}
-    mine = matrix.get(account_id, {})
+    siblings = queries.siblings_map(conn)
+
+    # A grouped branch buys as part of its group: a line bought on the Lincoln
+    # account and transferred to Norfolk is not whitespace at Norfolk. So "what
+    # we already buy" is the group's combined book, and group members are never
+    # each other's peers.
+    my_family = siblings.get(account_id, [account_id])
+    mine = {}
+    for member in my_family:
+        for brand_id, amount in matrix.get(member, {}).items():
+            mine[brand_id] = mine.get(brand_id, 0) + (amount or 0)
     my_total = sum(mine.values())
 
     my_chain = chain_key(account["name"])
     chain_peers = [
         aid for aid, a in all_accounts.items()
-        if aid != account_id and chain_key(a["name"]) == my_chain and aid in matrix
+        if aid not in my_family and chain_key(a["name"]) == my_chain and aid in matrix
     ]
     type_peers = [
         aid for aid, a in all_accounts.items()
-        if aid != account_id and aid in matrix
+        if aid not in my_family and aid in matrix
         and (a.get("company_type") or "") == (account.get("company_type") or "")
     ]
 
@@ -414,6 +453,37 @@ def territory_opportunities(conn, limit=40, min_estimate=500):
     return out[:limit]
 
 
+def suggested_groups(conn, min_members=2):
+    """Chains that look like they should be one buying group but aren't yet.
+
+    Offered as suggestions rather than applied automatically: some chains
+    really do run their branches as independent books, and merging those would
+    hide genuine differences between them.
+    """
+    accounts = queries.list_accounts(conn)
+    chains = {}
+    for a in accounts:
+        chains.setdefault(chain_key(a["name"]), []).append(a)
+
+    out = []
+    for chain, members in chains.items():
+        if len(members) < min_members:
+            continue
+        if all(m.get("group_id") for m in members):
+            continue  # already grouped
+        combined = sum(m.get("ytd_sales") or 0 for m in members)
+        out.append({
+            "chain": chain,
+            "suggested_name": " ".join(w.capitalize() for w in chain.split()) + " Group",
+            "members": sorted(members, key=lambda m: -(m.get("ytd_sales") or 0)),
+            "member_count": len(members),
+            "combined_ytd": combined,
+            "already_grouped": sum(1 for m in members if m.get("group_id")),
+        })
+    out.sort(key=lambda c: -c["combined_ytd"])
+    return out
+
+
 def dormant_branches(conn, min_chain_size=2, min_chain_median=2000):
     """Branches doing almost nothing while their sister branches do real volume.
 
@@ -427,12 +497,19 @@ def dormant_branches(conn, min_chain_size=2, min_chain_median=2000):
 
     accounts = {a["id"]: a for a in queries.list_accounts(conn)}
     totals = {aid: sum(brands.values()) for aid, brands in matrix.items()}
+    siblings = queries.siblings_map(conn)
 
-    # Group accounts that carry sales into chains.
+    # Group accounts that carry sales into chains. Branches inside a buying
+    # group are skipped entirely: when a chain raises one PO and transfers
+    # product between branches, an "empty" branch is a bookkeeping artifact,
+    # not a dormant account, and flagging it would send you chasing a problem
+    # that doesn't exist.
     chains = {}
     for aid in matrix:
         acct = accounts.get(aid)
         if not acct:
+            continue
+        if aid in siblings:
             continue
         chains.setdefault(chain_key(acct["name"]), []).append(aid)
 

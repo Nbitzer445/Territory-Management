@@ -25,6 +25,7 @@ def get_connection():
 MIGRATIONS = [
     ("accounts", "tier", "TEXT"),
     ("accounts", "cadence_days", "INTEGER"),
+    ("accounts", "group_id", "INTEGER"),
 ]
 
 
@@ -43,12 +44,57 @@ def migrate(conn):
     return applied
 
 
+def _meta_get(conn, key):
+    row = conn.execute("SELECT value FROM app_meta WHERE key = ?", (key,)).fetchone()
+    return row["value"] if row else None
+
+
+def _meta_set(conn, key, value):
+    conn.execute("INSERT OR REPLACE INTO app_meta (key, value) VALUES (?, ?)", (key, value))
+
+
+def seed_kelly_group(conn):
+    """Create the Kelly Group once.
+
+    Kelly's branches share POs -- product is bought on one account and
+    transferred to another -- so only the combined number is meaningful. This
+    runs a single time and records that it did, so it won't come back if the
+    group is later renamed, changed, or deliberately removed.
+    """
+    if _meta_get(conn, "kelly_group_seeded"):
+        return None
+    members = conn.execute(
+        "SELECT id FROM accounts WHERE name LIKE 'Kelly Supply%'"
+    ).fetchall()
+    if not members:
+        return None  # nothing imported yet; try again on a later start
+
+    conn.execute(
+        "INSERT OR IGNORE INTO account_groups (name, notes) VALUES (?, ?)",
+        ("Kelly Group",
+         "Branches share POs -- product is often bought on one account and transferred to "
+         "another, so only the combined number is meaningful."),
+    )
+    gid = conn.execute("SELECT id FROM account_groups WHERE name = 'Kelly Group'").fetchone()["id"]
+    conn.execute(
+        "UPDATE accounts SET group_id = ? WHERE name LIKE 'Kelly Supply%' AND group_id IS NULL",
+        (gid,),
+    )
+    _meta_set(conn, "kelly_group_seeded", "1")
+    conn.commit()
+    return gid
+
+
 def init_db():
     conn = get_connection()
     with open(SCHEMA_PATH, "r") as f:
         conn.executescript(f.read())
     conn.commit()
     migrate(conn)
+    try:
+        seed_kelly_group(conn)
+    except Exception:
+        pass  # never block startup on a convenience seed
     conn.close()
 
 

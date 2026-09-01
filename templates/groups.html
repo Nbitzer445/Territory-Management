@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block title %}Buying Groups -- BRM Territory Hub{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Buying Groups</h1>
+    <div class="subtitle">Branches that buy as one account, combined into the number that actually means something</div>
+  </div>
+</div>
+
+<div class="small muted section">
+  When a chain raises a PO from one branch and transfers product to another, the revenue lands
+  on a single account while the activity happens somewhere else. Grouping those branches keeps
+  the combined figure as the real one, stops sister-branch comparisons from reading a
+  bookkeeping pattern as a dormant account, and lets whitespace be judged on what the group
+  buys as a whole.
+</div>
+
+<div class="card section">
+  <h2>Your groups</h2>
+  {% if groups %}
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>Group</th><th>Branches</th><th>Combined YTD</th><th>Prior YTD</th><th>YoY</th><th>Visits</th><th>Last visit</th></tr></thead>
+    <tbody>
+      {% for g in groups %}
+      <tr>
+        <td><a href="{{ url_for('group_detail', group_id=g.id) }}">{{ g.name }}</a></td>
+        <td>{{ g.member_count }}</td>
+        <td><strong>{{ g.ytd_sales | money }}</strong></td>
+        <td>{{ g.prior_ytd_sales | money }}</td>
+        <td class="{{ 'good' if g.yoy_variance >= 0 else 'bad' }}">{{ g.yoy_variance | money }}</td>
+        <td>{{ g.total_visits }}</td>
+        <td>{{ g.last_visit_date | dateshort if g.last_visit_date else 'never' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}
+  <div class="empty">No groups yet. Create one from a suggestion below, or add one by hand.</div>
+  {% endif %}
+
+  <details style="margin-top:12px;">
+    <summary style="cursor:pointer; font-weight:600; font-size:14px;">+ Create a group by hand</summary>
+    <form method="post" action="{{ url_for('group_new') }}" style="margin-top:10px; max-width:420px;">
+      <div class="field"><label>Group name</label><input type="text" name="name" placeholder="e.g. Kelly Group" required></div>
+      <div class="field"><label>Notes</label><textarea name="notes" placeholder="Why these branches buy together"></textarea></div>
+      <button class="btn btn-small" type="submit">Create group</button>
+    </form>
+  </details>
+</div>
+
+<div class="card">
+  <h2>Suggested groups</h2>
+  <div class="small muted" style="margin-bottom:12px;">
+    Chains with more than one branch in your territory. These are suggestions only --
+    some chains genuinely run each branch as its own book, and grouping those would hide
+    real differences between them. Group the ones that share POs.
+  </div>
+  {% if suggestions %}
+  {% for s in suggestions %}
+  <div style="border-bottom:1px solid var(--border); padding:12px 0;">
+    <div style="display:flex; justify-content:space-between; align-items:baseline; flex-wrap:wrap; gap:8px;">
+      <div>
+        <strong>{{ s.suggested_name }}</strong>
+        <span class="muted small">-- {{ s.member_count }} branches, {{ s.combined_ytd | money }} combined YTD</span>
+        {% if s.already_grouped %}<span class="pill pill-warn">{{ s.already_grouped }} already grouped</span>{% endif %}
+      </div>
+      <form method="post" action="{{ url_for('group_new') }}">
+        <input type="hidden" name="name" value="{{ s.suggested_name }}">
+        <input type="hidden" name="chain" value="{{ s.chain }}">
+        <button class="btn btn-small btn-secondary" type="submit">Group these</button>
+      </form>
+    </div>
+    <div class="small muted" style="margin-top:4px;">
+      {% for m in s.members %}
+        {{ m.name }} ({{ m.ytd_sales | money }}){{ ", " if not loop.last }}
+      {% endfor %}
+    </div>
+  </div>
+  {% endfor %}
+  {% else %}
+  <div class="empty">Nothing to suggest -- every multi-branch chain is already grouped.</div>
+  {% endif %}
+</div>
+{% endblock %}

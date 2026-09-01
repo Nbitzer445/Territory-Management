@@ -168,6 +168,7 @@ def account_detail(account_id):
         priority=priority,
         whitespace=whitespace,
         tier_cadence=intelligence.TIER_CADENCE,
+        all_groups=conn.execute("SELECT id, name FROM account_groups ORDER BY name").fetchall(),
     )
 
 
@@ -189,6 +190,95 @@ def plan():
         filters={"market": market, "tier": tier},
         tier_cadence=intelligence.TIER_CADENCE,
     )
+
+
+# ---------------------------------------------------------------------------
+# Buying groups
+# ---------------------------------------------------------------------------
+
+@app.route("/groups")
+def groups_list():
+    conn = get_db()
+    groups = queries.list_groups(conn)
+    suggestions = intelligence.suggested_groups(conn)
+    return render_template("groups.html", groups=groups, suggestions=suggestions)
+
+
+@app.route("/groups/new", methods=["POST"])
+def group_new():
+    conn = get_db()
+    name = request.form.get("name", "").strip()
+    if not name:
+        flash("Give the group a name.", "error")
+        return redirect(url_for("groups_list"))
+    existing = conn.execute("SELECT id FROM account_groups WHERE name = ? COLLATE NOCASE", (name,)).fetchone()
+    if existing:
+        group_id = existing["id"]
+    else:
+        cur = conn.execute(
+            "INSERT INTO account_groups (name, notes) VALUES (?, ?)",
+            (name, request.form.get("notes", "").strip()),
+        )
+        group_id = cur.lastrowid
+
+    # Optionally assign a whole detected chain at once.
+    chain = request.form.get("chain", "").strip()
+    assigned = 0
+    if chain:
+        for row in conn.execute("SELECT id, name FROM accounts").fetchall():
+            if intelligence.chain_key(row["name"]) == chain:
+                conn.execute("UPDATE accounts SET group_id = ? WHERE id = ?", (group_id, row["id"]))
+                assigned += 1
+    conn.commit()
+    flash(f"Created '{name}'" + (f" with {assigned} account(s)." if assigned else "."), "success")
+    return redirect(url_for("group_detail", group_id=group_id))
+
+
+@app.route("/groups/<int:group_id>")
+def group_detail(group_id):
+    conn = get_db()
+    group = queries.get_group(conn, group_id)
+    if not group:
+        flash("Group not found.", "error")
+        return redirect(url_for("groups_list"))
+    unassigned = conn.execute(
+        "SELECT id, name FROM accounts WHERE group_id IS NULL OR group_id != ? ORDER BY name",
+        (group_id,),
+    ).fetchall()
+    return render_template("group_detail.html", group=group, unassigned=unassigned)
+
+
+@app.route("/groups/<int:group_id>/edit", methods=["POST"])
+def group_edit(group_id):
+    conn = get_db()
+    name = request.form.get("name", "").strip()
+    if name:
+        conn.execute("UPDATE account_groups SET name = ?, notes = ? WHERE id = ?",
+                     (name, request.form.get("notes", "").strip(), group_id))
+        conn.commit()
+        flash("Group updated.", "success")
+    return redirect(url_for("group_detail", group_id=group_id))
+
+
+@app.route("/groups/<int:group_id>/add", methods=["POST"])
+def group_add_account(group_id):
+    conn = get_db()
+    account_id = request.form.get("account_id", type=int)
+    if account_id:
+        conn.execute("UPDATE accounts SET group_id = ? WHERE id = ?", (group_id, account_id))
+        conn.commit()
+        flash("Added to group.", "success")
+    return redirect(url_for("group_detail", group_id=group_id))
+
+
+@app.route("/accounts/<int:account_id>/group", methods=["POST"])
+def account_set_group(account_id):
+    conn = get_db()
+    group_id = request.form.get("group_id", type=int)
+    conn.execute("UPDATE accounts SET group_id = ? WHERE id = ?", (group_id or None, account_id))
+    conn.commit()
+    flash("Group updated." if group_id else "Removed from group.", "success")
+    return redirect(request.referrer or url_for("account_detail", account_id=account_id))
 
 
 @app.route("/opportunities")

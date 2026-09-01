@@ -16,6 +16,7 @@
         <a href="{{ url_for('plan') }}" class="{{ 'active' if request.endpoint=='plan' }}">Plan</a>
         <a href="{{ url_for('opportunities') }}" class="{{ 'active' if request.endpoint=='opportunities' }}">Opportunities</a>
         <a href="{{ url_for('accounts_list') }}" class="{{ 'active' if request.endpoint in ('accounts_list','account_detail') }}">Accounts</a>
+        <a href="{{ url_for('groups_list') }}" class="{{ 'active' if request.endpoint in ('groups_list','group_detail') }}">Groups</a>
         <a href="{{ url_for('call_new') }}" class="{{ 'active' if request.endpoint=='call_new' }}">Log a Call</a>
         <a href="{{ url_for('followups_list') }}" class="{{ 'active' if request.endpoint=='followups_list' }}">Follow-ups</a>
         <a href="{{ url_for('brands_list') }}" class="{{ 'active' if request.endpoint in ('brands_list','brand_detail') }}">Brands</a>

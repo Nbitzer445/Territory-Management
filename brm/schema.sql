@@ -4,9 +4,29 @@
 
 PRAGMA foreign_keys = ON;
 
+-- Bookkeeping for one-time setup steps, so a seed never re-applies itself
+-- after you've deliberately undone it.
+CREATE TABLE IF NOT EXISTS app_meta (
+    key TEXT PRIMARY KEY,
+    value TEXT
+);
+
+-- Buying groups. Some chains issue a PO from one branch and transfer product
+-- to another, so the money lands on one account while the activity happens at
+-- another. Grouping those branches makes the combined number the real one and
+-- stops per-branch comparisons from reading a bookkeeping pattern as a sales
+-- problem.
+CREATE TABLE IF NOT EXISTS account_groups (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL UNIQUE,
+    notes TEXT,
+    created_at TEXT DEFAULT (datetime('now'))
+);
+
 CREATE TABLE IF NOT EXISTS accounts (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL UNIQUE,
+    group_id INTEGER REFERENCES account_groups(id) ON DELETE SET NULL,
     company_type TEXT,          -- Contractor / Distributor / End Customer / Manufacturers Rep / Principal / etc
     class TEXT,
     category TEXT,

@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+{% block title %}{{ group.name }} -- BRM Territory Hub{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>{{ group.name }}</h1>
+    <div class="subtitle">{{ group.member_count }} branches buying as one account</div>
+  </div>
+  <a href="{{ url_for('groups_list') }}" class="small">All groups &rarr;</a>
+</div>
+
+{% if group.notes %}
+<div class="card section small">{{ group.notes }}</div>
+{% endif %}
+
+<div class="grid grid-4 section">
+  <div class="card stat"><div class="value">{{ group.ytd_sales | money }}</div><div class="label">Combined YTD</div></div>
+  <div class="card stat"><div class="value">{{ group.prior_ytd_sales | money }}</div><div class="label">Prior-year YTD</div></div>
+  <div class="card stat">
+    <div class="value {{ 'good' if group.yoy_variance >= 0 else 'bad' }}">{{ group.yoy_variance | money }}</div>
+    <div class="label">YoY variance</div>
+  </div>
+  <div class="card stat">
+    <div class="value">{{ group.last_visit_date | dateshort if group.last_visit_date else 'Never' }}</div>
+    <div class="label">Last visit (any branch) &middot; {{ group.total_visits }} total</div>
+  </div>
+</div>
+
+<div class="two-col">
+  <div>
+    <div class="card section">
+      <h2>Combined sales by brand</h2>
+      <div class="small muted" style="margin-bottom:10px;">
+        Totalled across every branch, so a line bought on one account and shipped to another
+        still shows up where it belongs.
+      </div>
+      {% if group.sales_by_brand %}
+      <div class="table-wrap">
+      <table>
+        <thead><tr><th>Brand</th><th>YTD</th><th>Prior YTD</th><th>Variance</th><th>Branches buying</th></tr></thead>
+        <tbody>
+          {% for s in group.sales_by_brand %}
+          <tr>
+            <td><a href="{{ url_for('brand_detail', brand_id=s.brand_id) }}">{{ s.brand_name }}</a></td>
+            <td>{{ s.current_ytd | money }}</td>
+            <td>{{ s.prior_ytd | money }}</td>
+            <td class="{{ 'good' if s.variance >= 0 else 'bad' }}">{{ s.variance | money }}</td>
+            <td>{{ s.branches }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      </div>
+      {% else %}
+      <div class="empty">No sales data for this group yet.</div>
+      {% endif %}
+    </div>
+
+    <div class="card section">
+      <h2>Branches</h2>
+      <div class="small muted" style="margin-bottom:10px;">
+        Sales are booked wherever the PO was raised -- what matters per branch is the visit,
+        not the dollar figure.
+      </div>
+      <div class="table-wrap">
+      <table>
+        <thead><tr><th>Branch</th><th>Market</th><th>Booked to it</th><th>Last visit</th><th>Days</th><th>Visits</th></tr></thead>
+        <tbody>
+          {% for a in group.accounts %}
+          <tr>
+            <td><a href="{{ url_for('account_detail', account_id=a.id) }}">{{ a.name }}</a></td>
+            <td><span class="badge-market">{{ a.market or 'Other' }}</span></td>
+            <td class="muted">{{ a.ytd_sales | money }}</td>
+            <td>{{ a.last_visit_date | dateshort if a.last_visit_date else 'never' }}</td>
+            <td>{{ a.days_since_visit if a.days_since_visit is not none else '--' }}</td>
+            <td>{{ a.total_visits }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      </div>
+    </div>
+  </div>
+
+  <div>
+    <div class="card section">
+      <h2>Add a branch</h2>
+      <form method="post" action="{{ url_for('group_add_account', group_id=group.id) }}">
+        <div class="field">
+          <label>Account</label>
+          <select name="account_id">
+            {% for a in unassigned %}<option value="{{ a.id }}">{{ a.name }}</option>{% endfor %}
+          </select>
+        </div>
+        <button class="btn btn-small" type="submit">Add to group</button>
+      </form>
+    </div>
+
+    <div class="card section">
+      <h2>Edit group</h2>
+      <form method="post" action="{{ url_for('group_edit', group_id=group.id) }}">
+        <div class="field"><label>Name</label><input type="text" name="name" value="{{ group.name }}" required></div>
+        <div class="field"><label>Notes</label><textarea name="notes">{{ group.notes or '' }}</textarea></div>
+        <button class="btn btn-small" type="submit">Save</button>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

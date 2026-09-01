@@ -146,6 +146,12 @@ def tool_get_account(args):
         f"{a['total_visits']} visits total",
         f"YTD {money(a['ytd_sales'])} vs prior {money(a['prior_ytd_sales'])} ({money(a['yoy_variance'])} YoY)",
     ]
+    if a.get("group_name"):
+        lines.append(
+            f"BUYING GROUP: part of {a['group_name']} -- combined {money(a['group_ytd_sales'])} YTD "
+            f"({money(a['group_yoy_variance'])} YoY). These branches share POs, so the branch figure "
+            f"above understates the relationship; judge it on the group total."
+        )
     if a.get("notes"):
         lines.append(f"Notes: {a['notes']}")
 
@@ -406,6 +412,52 @@ def tool_add_followup(args):
     return f"Added follow-up at {acct}: {args.get('description')} (due {args.get('due_date') or 'no date'})."
 
 
+def tool_buying_groups(args):
+    conn = _conn()
+    name = (args.get("group") or "").strip()
+    groups = queries.list_groups(conn)
+    if not groups:
+        return "No buying groups defined yet."
+
+    if not name:
+        lines = ["BUYING GROUPS (branches that buy as one account):", ""]
+        for g in groups:
+            lines.append(
+                f"  {g['name']}: {money(g['ytd_sales'])} combined YTD vs {money(g['prior_ytd_sales'])} prior "
+                f"({money(g['yoy_variance'])} YoY) across {g['member_count']} branches"
+            )
+        return "\n".join(lines)
+
+    match = next((g for g in groups if name.lower() in g["name"].lower()), None)
+    if not match:
+        return f"No buying group matching '{name}'."
+    g = queries.get_group(conn, match["id"])
+    lines = [
+        f"BUYING GROUP: {g['name']}",
+        f"Combined YTD {money(g['ytd_sales'])} vs prior {money(g['prior_ytd_sales'])} "
+        f"({money(g['yoy_variance'])} YoY) across {g['member_count']} branches",
+        f"{g['total_visits']} visits logged, last visit {g['last_visit_date'] or 'never'}",
+    ]
+    if g.get("notes"):
+        lines.append(f"Note: {g['notes']}")
+    lines.append("")
+    lines.append("COMBINED SALES BY BRAND:")
+    for s in g["sales_by_brand"]:
+        lines.append(
+            f"  {s['brand_name']}: {money(s['current_ytd'])} vs {money(s['prior_ytd'])} "
+            f"({money(s['variance'])}) -- bought by {s['branches']} branch(es)"
+        )
+    lines.append("")
+    lines.append("BRANCHES (sales book wherever the PO was raised; the visit is what matters per branch):")
+    for a in g["accounts"]:
+        seen = a["last_visit_date"] or "never"
+        lines.append(
+            f"  {a['name']} ({a.get('market') or 'Other'}): {money(a['ytd_sales'])} booked, "
+            f"last visit {seen}, {a['total_visits']} visits"
+        )
+    return "\n".join(lines)
+
+
 def tool_list_markets(args):
     conn = _conn()
     rows = conn.execute(
@@ -519,6 +571,15 @@ TOOLS = [
         "description": "The Big Rivers line card for Nebraska/Iowa: every brand represented, its corporate parent, product description and territory.",
         "inputSchema": {"type": "object", "properties": {}},
         "handler": tool_line_card,
+    },
+    {
+        "name": "buying_groups",
+        "description": "Branches that buy as one account (a PO raised at one branch, product transferred to another), with combined sales. Omit 'group' to list them all. Always prefer the group's combined number over a single branch's when the account belongs to one.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {"group": {"type": "string", "description": "Group name or partial name; omit to list all"}},
+        },
+        "handler": tool_buying_groups,
     },
     {
         "name": "list_markets",

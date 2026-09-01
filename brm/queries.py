@@ -62,6 +62,119 @@ def list_accounts(conn, market=None, company_type=None, brand_id=None, search=No
     return accounts
 
 
+# ---------------------------------------------------------------------------
+# Buying groups
+# ---------------------------------------------------------------------------
+
+def list_groups(conn):
+    rows = conn.execute("SELECT * FROM account_groups ORDER BY name").fetchall()
+    groups = []
+    for r in rows:
+        g = dict(r)
+        g.update(group_rollup(conn, g["id"]))
+        groups.append(g)
+    groups.sort(key=lambda g: -(g["ytd_sales"] or 0))
+    return groups
+
+
+def group_members(conn, group_id):
+    rows = conn.execute(
+        "SELECT id FROM accounts WHERE group_id = ? ORDER BY name", (group_id,)
+    ).fetchall()
+    return [r["id"] for r in rows]
+
+
+def group_rollup(conn, group_id):
+    """Combined numbers for a buying group -- the figures that actually mean something."""
+    member_ids = group_members(conn, group_id)
+    if not member_ids:
+        return {"member_count": 0, "ytd_sales": 0, "prior_ytd_sales": 0, "yoy_variance": 0,
+                "total_visits": 0, "last_visit_date": None, "days_since_visit": None}
+    placeholders = ",".join("?" for _ in member_ids)
+    batch_id = latest_sales_batch_id(conn)
+    ytd = prior = 0.0
+    if batch_id:
+        row = conn.execute(
+            f"""SELECT SUM(current_ytd) cur, SUM(prior_ytd) pri FROM sales_snapshots
+                WHERE import_batch_id = ? AND account_id IN ({placeholders})""",
+            [batch_id] + member_ids,
+        ).fetchone()
+        ytd = row["cur"] or 0.0
+        prior = row["pri"] or 0.0
+    visits = conn.execute(
+        f"SELECT COUNT(*) c FROM calls WHERE account_id IN ({placeholders})", member_ids
+    ).fetchone()["c"]
+    last = conn.execute(
+        f"SELECT MAX(call_date) d FROM calls WHERE account_id IN ({placeholders})", member_ids
+    ).fetchone()["d"]
+    return {
+        "member_count": len(member_ids),
+        "ytd_sales": ytd,
+        "prior_ytd_sales": prior,
+        "yoy_variance": ytd - prior,
+        "total_visits": visits,
+        "last_visit_date": last,
+        "days_since_visit": days_since(last),
+    }
+
+
+def group_sales_by_brand(conn, group_id):
+    """Combined brand-level sales across every branch in the group."""
+    member_ids = group_members(conn, group_id)
+    batch_id = latest_sales_batch_id(conn)
+    if not member_ids or not batch_id:
+        return []
+    placeholders = ",".join("?" for _ in member_ids)
+    rows = conn.execute(
+        f"""SELECT b.id AS brand_id, b.name AS brand_name,
+                   SUM(s.current_ytd) AS current_ytd,
+                   SUM(s.prior_ytd) AS prior_ytd,
+                   COUNT(DISTINCT s.account_id) AS branches
+            FROM sales_snapshots s JOIN brands b ON b.id = s.brand_id
+            WHERE s.import_batch_id = ? AND s.account_id IN ({placeholders})
+            GROUP BY b.id ORDER BY SUM(s.current_ytd) DESC""",
+        [batch_id] + member_ids,
+    ).fetchall()
+    out = []
+    for r in rows:
+        d = dict(r)
+        d["variance"] = (d["current_ytd"] or 0) - (d["prior_ytd"] or 0)
+        out.append(d)
+    return out
+
+
+def get_group(conn, group_id):
+    row = conn.execute("SELECT * FROM account_groups WHERE id = ?", (group_id,)).fetchone()
+    if not row:
+        return None
+    g = dict(row)
+    g.update(group_rollup(conn, group_id))
+    g["accounts"] = [get_account(conn, aid) for aid in group_members(conn, group_id)]
+    g["sales_by_brand"] = group_sales_by_brand(conn, group_id)
+    return g
+
+
+def group_map(conn):
+    """{account_id: (group_id, group_name)} for every grouped account."""
+    rows = conn.execute(
+        """SELECT a.id, a.group_id, g.name FROM accounts a
+           JOIN account_groups g ON g.id = a.group_id
+           WHERE a.group_id IS NOT NULL"""
+    ).fetchall()
+    return {r["id"]: (r["group_id"], r["name"]) for r in rows}
+
+
+def siblings_map(conn):
+    """{account_id: [all account_ids sharing its group, including itself]}."""
+    rows = conn.execute(
+        "SELECT id, group_id FROM accounts WHERE group_id IS NOT NULL"
+    ).fetchall()
+    by_group = {}
+    for r in rows:
+        by_group.setdefault(r["group_id"], []).append(r["id"])
+    return {r["id"]: by_group[r["group_id"]] for r in rows}
+
+
 def account_computed_fields(conn, account_id):
     last_call = conn.execute(
         "SELECT call_date FROM calls WHERE account_id = ? ORDER BY call_date DESC LIMIT 1", (account_id,)
@@ -71,14 +184,35 @@ def account_computed_fields(conn, account_id):
     ytd = sum(s["current_ytd"] or 0 for s in sales)
     prior = sum(s["prior_ytd"] or 0 for s in sales)
     last_visit_date = last_call["call_date"] if last_call else None
-    return {
+    fields = {
         "last_visit_date": last_visit_date,
         "days_since_visit": days_since(last_visit_date),
         "total_visits": total_visits,
         "ytd_sales": ytd,
         "prior_ytd_sales": prior,
         "yoy_variance": ytd - prior,
+        "group_id": None,
+        "group_name": None,
+        "group_ytd_sales": None,
+        "group_yoy_variance": None,
     }
+
+    # If this branch belongs to a buying group, the group's combined figures
+    # are the meaningful ones -- a PO raised at one branch and transferred to
+    # another lands all the revenue on a single account.
+    row = conn.execute(
+        """SELECT a.group_id, g.name FROM accounts a
+           LEFT JOIN account_groups g ON g.id = a.group_id
+           WHERE a.id = ?""",
+        (account_id,),
+    ).fetchone()
+    if row and row["group_id"]:
+        roll = group_rollup(conn, row["group_id"])
+        fields["group_id"] = row["group_id"]
+        fields["group_name"] = row["name"]
+        fields["group_ytd_sales"] = roll["ytd_sales"]
+        fields["group_yoy_variance"] = roll["yoy_variance"]
+    return fields
 
 
 def get_account(conn, account_id):

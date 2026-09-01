@@ -103,6 +103,8 @@ Re-importing is safe and non-destructive:
   See below for how the ranking works.
 - **Opportunities** -- dormant branches and whitespace (lines an account isn't
   buying that comparable accounts are).
+- **Groups** -- branches that buy as one account, combined into the number that
+  actually means something. See below.
 - **Accounts** -- searchable/filterable list (market, type, brand, sort by
   days-since-visit or sales). Click into an account for its full profile:
   contacts, complete visit timeline, sales by brand with YoY, follow-ups,
@@ -148,6 +150,47 @@ always shown** so you can disagree with it. Four things feed in:
 
 **Day-trip clusters** group your highest-priority stops by market, so picking
 "Norfolk" gives you a route's worth of reasons to make the drive.
+
+## Buying groups (why branch numbers lie)
+
+Some chains raise a PO from one branch and transfer product to another. The
+revenue lands on a single account while the activity happens somewhere else --
+so Kelly Supply Lincoln can show $48K while Norfolk shows $92, even though
+you're selling the same chain and the Norfolk relationship is real.
+
+Left alone, that pattern makes the app draw exactly the wrong conclusions:
+Norfolk looks dormant, gets auto-tiered "D" with a 120-day visit cadence, and
+its whitespace looks enormous because the group's purchases are invisible from
+that branch.
+
+The **Groups** page fixes it. Put branches that share POs into one group and:
+
+- **Combined sales become the real number.** The group page shows total YTD,
+  prior-year, and sales by brand summed across every branch.
+- **Sister-branch comparisons stop firing.** Group members are never flagged
+  dormant relative to each other, because an empty branch inside a group is a
+  bookkeeping artifact, not a sales problem.
+- **Whitespace is judged on the group's whole book.** A line bought on the
+  Lincoln account isn't whitespace at Norfolk.
+- **Tier and cadence follow the relationship.** A branch in a group worth
+  $99K is tiered A and visited every 21 days, whatever happens to be booked
+  against that particular branch.
+- **Priority reasons stay honest**, e.g. *"$99,060 YTD at stake across Kelly
+  Group ($92 booked to this branch)."*
+
+Per-branch **visits** still matter and are still tracked individually -- the
+group is who buys, the branch is where you go.
+
+**Kelly Group is set up already.** The Groups page suggests other chains it
+detects (Ferguson, Plumbing & Heating Wholesale, Dennis Supply and so on) with
+a one-click "Group these" button. They're suggestions, not automatic: some
+chains genuinely run each branch as its own book, and merging those would hide
+real differences. Group the ones that actually share POs.
+
+One honest caveat: this corrects for *where* revenue books, not for *when*.
+If your sales reports lag, a recent month's activity may not have landed yet,
+and no amount of grouping fixes that -- treat a very recent YoY swing as
+provisional.
 
 ## How the Opportunities page works
 
@@ -206,6 +249,7 @@ Norfolk shortlist, nothing more.
 | `brand_performance` | How a line is doing across the territory |
 | `open_followups` | Everything owed, overdue flagged |
 | `recent_news` | Saved market/manufacturer news |
+| `buying_groups` | Branches that buy as one account, with combined sales |
 | `line_card` | Your Big Rivers line card |
 | `list_markets` | Markets and account counts |
 | `log_call` | Log a visit by talking to it |
