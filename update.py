@@ -98,6 +98,34 @@ def backup_code():
     return dest
 
 
+def install_requirements():
+    """Install any new dependencies an update introduced.
+
+    Without this, adding a package would silently break the next start:
+    run.bat only installs requirements when it first creates the virtual
+    environment, and by then it already exists.
+    """
+    if os.name == "nt":
+        py = PROJECT_DIR / ".venv" / "Scripts" / "python.exe"
+    else:
+        py = PROJECT_DIR / ".venv" / "bin" / "python"
+    req = PROJECT_DIR / "requirements.txt"
+    if not py.exists() or not req.exists():
+        return False
+    import subprocess
+
+    try:
+        subprocess.run(
+            [str(py), "-m", "pip", "install", "--quiet", "-r", str(req)],
+            check=True, timeout=300,
+        )
+        return True
+    except Exception as e:
+        print(f"  (couldn't refresh dependencies automatically: {e})")
+        print("  If the app won't start, run:  .venv\\Scripts\\pip install -r requirements.txt")
+        return False
+
+
 def apply_update(source_dir):
     changed, added = [], []
     for item in CODE_ITEMS:
@@ -169,6 +197,10 @@ def main():
         print(f"  {item}")
     for item in sorted(added):
         print(f"  {item}  (new)")
+
+    print("\nChecking dependencies...")
+    if install_requirements():
+        print("  up to date")
 
     print("\nYour data folder was not touched -- accounts, calls, contacts,")
     print("follow-ups, groups and notes are all exactly as you left them.")
