@@ -13,6 +13,8 @@
       <a class="brand" href="{{ url_for('dashboard') }}">BRM Territory Hub</a>
       <nav class="mainnav">
         <a href="{{ url_for('dashboard') }}" class="{{ 'active' if request.endpoint=='dashboard' }}">Dashboard</a>
+        <a href="{{ url_for('plan') }}" class="{{ 'active' if request.endpoint=='plan' }}">Plan</a>
+        <a href="{{ url_for('opportunities') }}" class="{{ 'active' if request.endpoint=='opportunities' }}">Opportunities</a>
         <a href="{{ url_for('accounts_list') }}" class="{{ 'active' if request.endpoint in ('accounts_list','account_detail') }}">Accounts</a>
         <a href="{{ url_for('call_new') }}" class="{{ 'active' if request.endpoint=='call_new' }}">Log a Call</a>
         <a href="{{ url_for('followups_list') }}" class="{{ 'active' if request.endpoint=='followups_list' }}">Follow-ups</a>

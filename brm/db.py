@@ -19,11 +19,36 @@ def get_connection():
     return conn
 
 
+# Columns added after the first release. Each entry is applied only if the
+# column is missing, so an existing database with real data in it upgrades
+# in place without losing anything.
+MIGRATIONS = [
+    ("accounts", "tier", "TEXT"),
+    ("accounts", "cadence_days", "INTEGER"),
+]
+
+
+def migrate(conn):
+    """Add any columns introduced after a user's database was first created."""
+    applied = []
+    for table, column, coltype in MIGRATIONS:
+        existing = {row["name"] for row in conn.execute(f"PRAGMA table_info({table})")}
+        if not existing:
+            continue  # table doesn't exist yet; schema.sql will create it
+        if column not in existing:
+            conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {coltype}")
+            applied.append(f"{table}.{column}")
+    if applied:
+        conn.commit()
+    return applied
+
+
 def init_db():
     conn = get_connection()
     with open(SCHEMA_PATH, "r") as f:
         conn.executescript(f.read())
     conn.commit()
+    migrate(conn)
     conn.close()
 
 

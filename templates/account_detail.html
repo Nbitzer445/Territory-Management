@@ -20,6 +20,26 @@
   <div class="card stat"><div class="value">{{ account.ytd_sales | money }}</div><div class="label">YTD sales ({{ account.yoy_variance | money }} YoY)</div></div>
 </div>
 
+<div class="card section">
+  <div style="display:flex; justify-content:space-between; align-items:baseline; flex-wrap:wrap; gap:8px;">
+    <h2 class="mt0">Priority
+      <span class="pill {{ 'pill-bad' if priority.score >= 100 else ('pill-warn' if priority.score >= 60 else 'pill-neutral') }}">
+        {{ priority.score | round(0) | int }}
+      </span>
+    </h2>
+    <div class="small muted">
+      Tier {{ priority.tier }}{% if priority.auto_tier %} (auto){% endif %} &middot; target every {{ priority.cadence }} days
+    </div>
+  </div>
+  {% if priority.reasons %}
+  <div class="small" style="margin-top:6px;">
+    {% for r in priority.reasons %}<div>&bull; {{ r }}</div>{% endfor %}
+  </div>
+  {% else %}
+  <div class="small muted" style="margin-top:6px;">On cadence, nothing outstanding.</div>
+  {% endif %}
+</div>
+
 <div class="two-col">
   <div>
     <div class="card section">
@@ -42,6 +62,34 @@
       </div>
       {% else %}
       <div class="empty">No sales data imported for this account yet.</div>
+      {% endif %}
+    </div>
+
+    <div class="card section">
+      <h2>Opportunities -- not buying, but comparable accounts do</h2>
+      {% if whitespace %}
+      <div class="table-wrap">
+      <table>
+        <thead><tr><th>Brand</th><th>Est. opportunity</th><th>Evidence</th></tr></thead>
+        <tbody>
+        {% for w in whitespace %}
+          <tr>
+            <td><a href="{{ url_for('brand_detail', brand_id=w.brand_id) }}">{{ w.brand_name }}</a></td>
+            <td><strong>{{ w.estimate | money }}</strong></td>
+            <td class="small muted">
+              {{ w.peer_buyers }} {{ w.peer_kind }} buy it &middot; median {{ w.peer_median | money }}
+              &middot; best {{ w.best_peer | money }}
+            </td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      </div>
+      {% else %}
+      <div class="empty small">
+        No whitespace to show. This is normal for contractors -- they buy through distributors,
+        so there are no direct sales to compare.
+      </div>
       {% endif %}
     </div>
 
@@ -84,6 +132,18 @@
         </div>
         <div class="field"><label>Market</label>
           <select name="market">{% for m in markets %}<option {{ 'selected' if account.market==m }}>{{ m }}</option>{% endfor %}</select>
+        </div>
+        <div class="field"><label>Tier (drives visit cadence)</label>
+          <select name="tier">
+            <option value="">Auto from sales volume</option>
+            {% for t, days in tier_cadence.items() %}
+            <option value="{{ t }}" {{ 'selected' if account.tier==t }}>{{ t }} -- every {{ days }} days</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="field"><label>Custom cadence (days, optional)</label>
+          <input type="number" name="cadence_days" min="1" value="{{ account.cadence_days or '' }}"
+                 placeholder="Leave blank to use the tier default">
         </div>
         <div class="field"><label>Class</label><input type="text" name="class" value="{{ account['class'] or '' }}"></div>
         <div class="field"><label>Category</label><input type="text" name="category" value="{{ account.category or '' }}"></div>

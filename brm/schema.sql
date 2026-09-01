@@ -15,6 +15,8 @@ CREATE TABLE IF NOT EXISTS accounts (
     state TEXT,
     zip TEXT,
     market TEXT,                 -- Lincoln / Omaha / Norfolk / Columbus / Fremont / Sioux City / NW Iowa / Other
+    tier TEXT,                   -- A / B / C / D -- drives target visit cadence (blank = auto from sales)
+    cadence_days INTEGER,        -- override target days between visits (blank = tier default)
     phone TEXT,
     website TEXT,
     status TEXT,

@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}Opportunities -- BRM Territory Hub{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Opportunities</h1>
+    <div class="subtitle">Lines your accounts aren't buying that comparable accounts are</div>
+  </div>
+</div>
+
+<div class="card section">
+  <h2>Dormant branches</h2>
+  <div class="small muted" style="margin-bottom:12px;">
+    Same banner, same buying group, wildly different results. When one branch does real volume
+    and its sister branch does almost nothing, that's usually a relationship gap rather than a
+    market gap -- and it's the most winnable business you have.
+  </div>
+  {% if dormant %}
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>Branch</th><th>Market</th><th>Their YTD</th><th>Healthy sibling does</th><th>Gap</th><th>Last visit</th></tr></thead>
+    <tbody>
+      {% for d in dormant %}
+      <tr>
+        <td><a href="{{ url_for('account_detail', account_id=d.account_id) }}">{{ d.account_name }}</a></td>
+        <td><span class="badge-market">{{ d.market or 'Other' }}</span></td>
+        <td>{{ d.ytd_sales | money }}</td>
+        <td>{{ d.chain_median | money }} <span class="muted small">(best {{ d.chain_best | money }})</span></td>
+        <td class="bad">{{ d.gap | money }}</td>
+        <td>
+          {% if d.days_since_visit is none %}<span class="pill pill-bad">never visited</span>
+          {% else %}{{ d.days_since_visit }}d ago{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}
+  <div class="empty">No dormant branches found -- every multi-branch account is pulling its weight.</div>
+  {% endif %}
+</div>
+
+<div class="card">
+  <h2>Whitespace -- lines not being bought</h2>
+  <div class="small muted" style="margin-bottom:12px;">
+    Estimates are scaled to each account's actual size, so they're a starting point for a
+    conversation, not a forecast. "Sister branches" means the same banner; "similar accounts"
+    means the same company type.
+  </div>
+  {% if opportunities %}
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>Est. opportunity</th><th>Brand</th><th>Account</th><th>Market</th><th>Evidence</th><th>Last visit</th></tr></thead>
+    <tbody>
+      {% for o in opportunities %}
+      <tr>
+        <td><strong>{{ o.estimate | money }}</strong></td>
+        <td><a href="{{ url_for('brand_detail', brand_id=o.brand_id) }}">{{ o.brand_name }}</a></td>
+        <td><a href="{{ url_for('account_detail', account_id=o.account_id) }}">{{ o.account_name }}</a></td>
+        <td><span class="badge-market">{{ o.market or 'Other' }}</span></td>
+        <td class="small muted">{{ o.peer_buyers }} {{ o.peer_kind }} buy it &middot; median {{ o.peer_median | money }}</td>
+        <td class="small">
+          {% if o.days_since_visit is none %}never{% else %}{{ o.days_since_visit }}d ago{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}
+  <div class="empty">No whitespace found yet -- import your sales file to populate this.</div>
+  {% endif %}
+</div>
+{% endblock %}

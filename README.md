@@ -96,9 +96,13 @@ Re-importing is safe and non-destructive:
 
 ## What's in the app
 
-- **Dashboard** -- follow-ups due this week, accounts overdue for a visit,
-  biggest YoY sales movers (growth and decline), neglected-revenue
-  accounts (real sales, no recent visit), and a news feed snapshot.
+- **Dashboard** -- who to go see next, dormant branches, follow-ups due this
+  week, accounts overdue for a visit, biggest YoY sales movers (growth and
+  decline), neglected-revenue accounts, and a news feed snapshot.
+- **Plan** -- a ranked "who to see next" list and day-trip clusters by market.
+  See below for how the ranking works.
+- **Opportunities** -- dormant branches and whitespace (lines an account isn't
+  buying that comparable accounts are).
 - **Accounts** -- searchable/filterable list (market, type, brand, sort by
   days-since-visit or sales). Click into an account for its full profile:
   contacts, complete visit timeline, sales by brand with YoY, follow-ups,
@@ -116,6 +120,53 @@ Re-importing is safe and non-destructive:
   public sources. Tag any article to an account or brand, or paste in your
   own.
 - **Import** -- upload fresh monthly exports; full history of past imports.
+
+## How the Plan page decides who you should see
+
+Every account gets a priority score, and the **reasons behind the score are
+always shown** so you can disagree with it. Four things feed in:
+
+1. **Cadence** -- how far past its target visit interval the account is.
+   Targets come from the account's tier:
+
+   | Tier | Target visit cadence | Auto-assigned when |
+   |------|----------------------|--------------------|
+   | A    | every 21 days        | $50K+ YTD          |
+   | B    | every 42 days        | $10K-$50K YTD      |
+   | C    | every 90 days        | $1K-$10K YTD       |
+   | D    | every 120 days       | under $1K YTD      |
+
+   Accounts with no sales history (most contractors) default to 60 days.
+   Tiers are assigned automatically from sales volume, but you can **set the
+   tier or a custom cadence by hand on any account page** and yours wins.
+
+2. **Revenue at stake** -- bigger accounts rank higher, on a log scale so one
+   giant account doesn't drown out everything else.
+3. **YoY erosion** -- an account bleeding year-over-year gets pushed up, scaled
+   by how big the drop is in both percentage and dollar terms.
+4. **What you owe them** -- open and overdue follow-ups add weight.
+
+**Day-trip clusters** group your highest-priority stops by market, so picking
+"Norfolk" gives you a route's worth of reasons to make the drive.
+
+## How the Opportunities page works
+
+**Dormant branches** compare each branch against its own sister branches. Same
+banner, same buying group, wildly different results usually means a
+relationship gap rather than a market gap. The comparison point is the median
+of the chain's *top half* -- a plain average lies when a chain has two strong
+branches and three asleep, and the plain maximum lies when one member is
+really a regional distribution center booking volume for everybody.
+
+**Whitespace** finds lines an account buys none of that comparable accounts do
+buy. Comparisons prefer sister branches of the same chain; failing that, other
+accounts of the same company type. Estimates are scaled to the account's actual
+size and capped for credibility -- they're a starting point for a conversation,
+not a forecast.
+
+Whitespace only applies to accounts with direct sales (distributors).
+Contractors buy through distributors, so there's nothing to compare -- their
+value in this system is the visit history and the pull-through they drive.
 
 ## How the News feed works
 
@@ -139,6 +190,19 @@ anything else.
 You can always skip live fetching entirely and use **Add a news item
 manually** on the News page to paste in an article or write your own note.
 
+## Updating to a newer version of the app
+
+If you already have this running with data in it and you download a newer
+version of the code:
+
+1. Keep your existing `data` folder -- **don't** delete or overwrite it. That's
+   where everything you've entered lives.
+2. Replace the code files (`app.py`, the `brm` folder, `templates`, `static`).
+3. Start the app as usual. Any new database columns are added automatically on
+   startup, in place, without touching your existing records.
+
+Backing up first (`backup.bat`) is never a bad idea before an update.
+
 ## Backing up your data
 
 Your data lives in `data/territory.db`. To make a timestamped backup:
@@ -160,6 +224,7 @@ brm/
   schema.sql         Database schema
   importer.py        Parsers for the 3 source spreadsheets + merge logic
   queries.py          Dashboard / sales-intelligence / rollup queries
+  intelligence.py     Priority scoring, whitespace, dormant branches, clustering
   news.py             News search + manual entries
 templates/            Page templates
 static/                CSS/JS (no build step, no CDN, works offline)

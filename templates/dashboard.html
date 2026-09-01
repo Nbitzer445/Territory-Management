@@ -58,6 +58,57 @@
 
     <div class="card section">
       <div class="page-header" style="margin-bottom:8px;">
+        <h2 class="mt0">Go see these next</h2>
+        <a href="{{ url_for('plan') }}" class="small">Full plan &rarr;</a>
+      </div>
+      {% if top_targets %}
+      <div class="table-wrap">
+      <table>
+        <thead><tr><th>Score</th><th>Account</th><th>Market</th><th>Why</th></tr></thead>
+        <tbody>
+          {% for a in top_targets %}
+          <tr>
+            <td><span class="pill {{ 'pill-bad' if a.score >= 100 else ('pill-warn' if a.score >= 60 else 'pill-neutral') }}">{{ a.score | round(0) | int }}</span></td>
+            <td><a href="{{ url_for('account_detail', account_id=a.id) }}">{{ a.name }}</a></td>
+            <td><span class="badge-market">{{ a.market or 'Other' }}</span></td>
+            <td class="small">{% for r in a.reasons %}<div>&bull; {{ r }}</div>{% endfor %}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      </div>
+      {% else %}
+      <div class="empty">Import your data to see priorities.</div>
+      {% endif %}
+    </div>
+
+    {% if dormant %}
+    <div class="card section">
+      <div class="page-header" style="margin-bottom:8px;">
+        <h2 class="mt0">Dormant branches</h2>
+        <a href="{{ url_for('opportunities') }}" class="small">All opportunities &rarr;</a>
+      </div>
+      <div class="small muted" style="margin-bottom:8px;">Sister branches doing real volume while these do almost nothing.</div>
+      <div class="table-wrap">
+      <table>
+        <thead><tr><th>Branch</th><th>Their YTD</th><th>Sibling does</th><th>Last visit</th></tr></thead>
+        <tbody>
+          {% for d in dormant %}
+          <tr>
+            <td><a href="{{ url_for('account_detail', account_id=d.account_id) }}">{{ d.account_name }}</a></td>
+            <td>{{ d.ytd_sales | money }}</td>
+            <td>{{ d.chain_median | money }}</td>
+            <td class="small">{% if d.days_since_visit is none %}<span class="pill pill-bad">never</span>{% else %}{{ d.days_since_visit }}d{% endif %}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      </div>
+    </div>
+    {% endif %}
+
+    <div class="card section">
+      <div class="page-header" style="margin-bottom:8px;">
         <h2 class="mt0">Accounts overdue for a visit</h2>
         <a href="{{ url_for('accounts_list', sort='days_since_visit') }}" class="small">View all &rarr;</a>
       </div>

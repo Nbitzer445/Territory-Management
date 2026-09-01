@@ -11,7 +11,7 @@ from datetime import date, datetime, timedelta
 
 from flask import Flask, g, render_template, request, redirect, url_for, flash, jsonify
 
-from brm import db, importer, queries, news
+from brm import db, importer, queries, news, intelligence
 
 app = Flask(__name__)
 app.secret_key = "brm-territory-hub-local-only"  # local single-user app; not security sensitive
@@ -77,6 +77,8 @@ def dashboard():
     overdue_visits = queries.accounts_overdue_for_visit(conn, min_days=45, limit=12)
     movers = queries.top_movers(conn, limit=8)
     neglected = queries.neglected_revenue_accounts(conn, limit=8)
+    top_targets = intelligence.prioritized_accounts(conn, limit=8)
+    dormant = intelligence.dormant_branches(conn)[:5]
     news_items = news.list_news(conn, limit=8)
     news_last_refresh = news.last_refreshed(conn)
     return render_template(
@@ -86,6 +88,8 @@ def dashboard():
         overdue_visits=overdue_visits,
         movers=movers,
         neglected=neglected,
+        top_targets=top_targets,
+        dormant=dormant,
         news_items=news_items,
         news_last_refresh=news_last_refresh,
     )
@@ -148,6 +152,13 @@ def account_detail(account_id):
     followups = queries.followups_for_account(conn, account_id)
     brands = conn.execute("SELECT id, name FROM brands ORDER BY name").fetchall()
     account_news = news.list_news(conn, account_id=account_id, limit=20)
+
+    all_accounts = queries.list_accounts(conn)
+    max_ytd = max((a.get("ytd_sales") or 0) for a in all_accounts) if all_accounts else 1
+    fu_counts = intelligence._followup_counts_by_account(conn).get(account_id)
+    priority = intelligence.compute_priority(account, max_ytd=max_ytd or 1, followup_counts=fu_counts)
+    whitespace = intelligence.whitespace_for_account(conn, account_id)
+
     return render_template(
         "account_detail.html",
         account=account,
@@ -157,14 +168,47 @@ def account_detail(account_id):
         followups=followups,
         brands=brands,
         account_news=account_news,
+        priority=priority,
+        whitespace=whitespace,
+        tier_cadence=intelligence.TIER_CADENCE,
     )
+
+
+# ---------------------------------------------------------------------------
+# Plan -- who to see next, and how to group the trip
+# ---------------------------------------------------------------------------
+
+@app.route("/plan")
+def plan():
+    conn = get_db()
+    market = request.args.get("market") or None
+    tier = request.args.get("tier") or None
+    targets = intelligence.prioritized_accounts(conn, market=market, tier=tier, limit=30)
+    clusters = intelligence.market_clusters(conn, per_market=6)
+    return render_template(
+        "plan.html",
+        targets=targets,
+        clusters=clusters,
+        filters={"market": market, "tier": tier},
+        tier_cadence=intelligence.TIER_CADENCE,
+    )
+
+
+@app.route("/opportunities")
+def opportunities():
+    conn = get_db()
+    opps = intelligence.territory_opportunities(conn, limit=40)
+    dormant = intelligence.dormant_branches(conn)
+    return render_template("opportunities.html", opportunities=opps, dormant=dormant)
 
 
 @app.route("/accounts/<int:account_id>/edit", methods=["POST"])
 def account_edit(account_id):
     conn = get_db()
-    fields = ["company_type", "class", "category", "street", "city", "state", "zip", "market", "phone", "website", "status", "notes"]
+    fields = ["company_type", "class", "category", "street", "city", "state", "zip", "market",
+              "tier", "cadence_days", "phone", "website", "status", "notes"]
     updates = {f: request.form.get(f, "").strip() for f in fields}
+    updates["cadence_days"] = updates["cadence_days"] or None
     set_clause = ", ".join(f"{f} = ?" for f in fields)
     conn.execute(
         f"UPDATE accounts SET {set_clause}, updated_at = datetime('now') WHERE id = ?",

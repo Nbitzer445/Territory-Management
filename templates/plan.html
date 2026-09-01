@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% block title %}Plan -- BRM Territory Hub{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Who to See Next</h1>
+    <div class="subtitle">Ranked by cadence, revenue at stake, YoY erosion, and what you owe them</div>
+  </div>
+  <a href="{{ url_for('call_new') }}" class="btn">+ Log a Call</a>
+</div>
+
+<form method="get" class="filters autofilter">
+  <select name="market">
+    <option value="">All markets</option>
+    {% for m in markets %}<option value="{{ m }}" {{ 'selected' if filters.market==m }}>{{ m }}</option>{% endfor %}
+  </select>
+  <select name="tier">
+    <option value="">All tiers</option>
+    {% for t, days in tier_cadence.items() %}
+    <option value="{{ t }}" {{ 'selected' if filters.tier==t }}>{{ t }} (every {{ days }}d)</option>
+    {% endfor %}
+  </select>
+  <a href="{{ url_for('plan') }}" class="small">Clear</a>
+</form>
+
+<div class="section">
+  <h2>Day-trip clusters</h2>
+  <div class="small muted" style="margin-bottom:10px;">
+    Your highest-priority stops grouped by market -- pick a market, get a route's worth of reasons to go.
+  </div>
+  <div class="grid grid-3">
+    {% for c in clusters[:6] %}
+    <div class="card">
+      <div style="display:flex; justify-content:space-between; align-items:baseline;">
+        <h2 class="mt0">{{ c.market }}</h2>
+        <span class="pill pill-neutral">{{ c.overdue_count }} overdue</span>
+      </div>
+      <div class="small muted" style="margin-bottom:8px;">
+        {{ c.account_count }} accounts &middot; {{ c.total_ytd | money }} YTD in the top {{ c.accounts | length }}
+      </div>
+      {% for a in c.accounts %}
+      <div class="small" style="margin-bottom:5px;">
+        <span class="pill {{ 'pill-bad' if a.score >= 100 else ('pill-warn' if a.score >= 60 else 'pill-neutral') }}">{{ a.score | round(0) | int }}</span>
+        <a href="{{ url_for('account_detail', account_id=a.id) }}">{{ a.name }}</a>
+      </div>
+      {% endfor %}
+      <div style="margin-top:8px;"><a href="{{ url_for('plan', market=c.market) }}" class="small">Focus this market &rarr;</a></div>
+    </div>
+    {% else %}
+    <div class="empty">No accounts scored yet -- import your data first.</div>
+    {% endfor %}
+  </div>
+</div>
+
+<div class="card">
+  <h2>Priority list</h2>
+  <div class="table-wrap">
+  <table>
+    <thead>
+      <tr><th>Score</th><th>Account</th><th>Tier</th><th>Market</th><th>Why it's ranked here</th><th>YTD</th></tr>
+    </thead>
+    <tbody>
+      {% for a in targets %}
+      <tr>
+        <td>
+          <span class="pill {{ 'pill-bad' if a.score >= 100 else ('pill-warn' if a.score >= 60 else 'pill-neutral') }}">
+            {{ a.score | round(0) | int }}
+          </span>
+        </td>
+        <td><a href="{{ url_for('account_detail', account_id=a.id) }}">{{ a.name }}</a></td>
+        <td>{{ a.tier }}{% if a.auto_tier %}<span class="muted small" title="Automatically set from sales volume">*</span>{% endif %}</td>
+        <td><span class="badge-market">{{ a.market or 'Other' }}</span></td>
+        <td class="small">
+          {% for r in a.reasons %}<div>&bull; {{ r }}</div>{% endfor %}
+        </td>
+        <td>{{ a.ytd_sales | money }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="6" class="empty">Nothing to rank yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  <div class="small muted" style="margin-top:10px;">
+    * tier set automatically from sales volume. Set it by hand on any account page to change its visit cadence.
+  </div>
+</div>
+{% endblock %}
