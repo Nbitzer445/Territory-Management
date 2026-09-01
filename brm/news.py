@@ -17,6 +17,7 @@ from urllib.parse import quote_plus
 
 import requests
 
+from . import linecard
 from .importer import _clean
 
 
@@ -38,10 +39,26 @@ COMMODITY_QUERIES = [
     ("PVC pipe resin prices", "commodity"),
 ]
 
-MARKET_QUERIES = [
+# Nebraska & Iowa business insight -- the point is pipeline: who is building
+# what, where, and what that means for pull-through on your lines.
+REGIONAL_QUERIES = [
+    ("Nebraska commercial construction project", "regional"),
+    ("Iowa commercial construction project", "regional"),
+    ("Omaha construction development project", "regional"),
+    ("Lincoln Nebraska development construction", "regional"),
+    ("Sioux City construction project", "regional"),
+    ("Des Moines commercial construction", "regional"),
+    ("Nebraska data center construction", "regional"),
+    ("Iowa data center construction", "regional"),
+    ("Nebraska Iowa groundbreaking hospital school apartments", "regional"),
+    ("Nebraska Iowa economic development new manufacturing plant", "regional"),
+    ("Nebraska Iowa housing starts building permits", "demand"),
+    ("Nebraska Iowa mechanical contractor plumbing company", "regional"),
+]
+
+INDUSTRY_QUERIES = [
     ("plumbing wholesale distribution industry", "market"),
     ("HVAC distribution industry news", "market"),
-    ("construction housing starts Nebraska Iowa", "demand"),
 ]
 
 
@@ -78,29 +95,49 @@ def _fetch_rss(query, max_items=6, timeout=8):
     return items
 
 
-def build_queries(conn, brand_ids=None):
-    """Returns list of (query_string, category, query_tag)."""
-    queries = []
-    for q, cat in COMMODITY_QUERIES:
-        queries.append((q, cat, q))
-    for q, cat in MARKET_QUERIES:
-        queries.append((q, cat, q))
+SCOPES = ("all", "regional", "manufacturers", "commodity")
 
-    sql = "SELECT id, name FROM brands WHERE category IS NULL OR category != 'admin'"
-    params = []
-    if brand_ids:
-        placeholders = ",".join("?" for _ in brand_ids)
-        sql += f" AND id IN ({placeholders})"
-        params = list(brand_ids)
-    for row in conn.execute(sql, params).fetchall():
-        queries.append((f'"{row["name"]}" plumbing OR manufacturer OR distributor', "manufacturer", row["name"]))
+
+def build_queries(conn=None, scope="all"):
+    """Returns list of (query_string, category, query_tag).
+
+    Manufacturer queries come from the line card, not from whatever brand
+    strings happen to be in the sales export -- the card is the authoritative
+    list of what's actually represented, and it carries the context terms that
+    keep generic names like "Salo" or "Harris" from returning noise.
+    """
+    queries = []
+
+    if scope in ("all", "regional"):
+        for q, cat in REGIONAL_QUERIES:
+            queries.append((q, cat, q))
+        for q, cat in INDUSTRY_QUERIES:
+            queries.append((q, cat, q))
+
+    if scope in ("all", "commodity"):
+        for q, cat in COMMODITY_QUERIES:
+            queries.append((q, cat, q))
+
+    if scope in ("all", "manufacturers"):
+        for entry in linecard.active_lines():
+            context = entry.get("context") or "plumbing"
+            queries.append((f'"{entry["brand"]}" {context}', "manufacturer", entry["brand"]))
+        # Corporate-level news (acquisitions, leadership, plant moves) tends to
+        # break under the parent's name rather than the brand's.
+        for parent in linecard.parents():
+            queries.append((f'"{parent}"', "manufacturer", parent))
+
     return queries
 
 
-def refresh_news(conn, brand_ids=None, max_items_per_query=5):
-    """Fetch fresh items for each query and insert new ones (de-duped by URL)."""
-    summary = {"queries_run": 0, "items_added": 0, "errors": []}
-    queries = build_queries(conn, brand_ids=brand_ids)
+def refresh_news(conn, scope="all", max_items_per_query=5):
+    """Fetch fresh items for each query and insert new ones (de-duped by URL).
+
+    `scope` limits the pull to 'regional', 'manufacturers' or 'commodity' so a
+    quick refresh of one section doesn't have to run every search.
+    """
+    summary = {"queries_run": 0, "items_added": 0, "errors": [], "scope": scope}
+    queries = build_queries(conn, scope=scope)
     for query, category, tag in queries:
         summary["queries_run"] += 1
         try:
@@ -114,14 +151,41 @@ def refresh_news(conn, brand_ids=None, max_items_per_query=5):
             exists = conn.execute("SELECT id FROM news_items WHERE url = ?", (item["url"],)).fetchone()
             if exists:
                 continue
-            conn.execute(
+            cur = conn.execute(
                 """INSERT INTO news_items (title, url, source, published_at, summary, category, query_tag, manual)
                    VALUES (?, ?, ?, ?, ?, ?, ?, 0)""",
                 (item["title"], item["url"], item["source"], item["published_at"], item["summary"], category, tag),
             )
             summary["items_added"] += 1
+            if category == "manufacturer":
+                _auto_link_brand(conn, cur.lastrowid, tag)
     conn.commit()
     return summary
+
+
+def _brand_ids_for_tag(conn, tag):
+    """Map a line card brand or parent name onto brand rows in the database."""
+    names = set()
+    entry = linecard.find_entry(tag)
+    if entry:
+        names.update(a.lower() for a in entry.get("db_aliases", []))
+    else:
+        # A parent-company query: match every brand under that parent.
+        for e in linecard.active_lines():
+            if (e.get("parent") or "").lower() == tag.lower():
+                names.update(a.lower() for a in e.get("db_aliases", []))
+    if not names:
+        return []
+    rows = conn.execute("SELECT id, name FROM brands").fetchall()
+    return [r["id"] for r in rows if r["name"].strip().lower() in names]
+
+
+def _auto_link_brand(conn, news_id, tag):
+    for brand_id in _brand_ids_for_tag(conn, tag):
+        conn.execute(
+            "INSERT INTO news_links (news_id, brand_id) VALUES (?, ?)",
+            (news_id, brand_id),
+        )
 
 
 def add_manual_news(conn, title, url=None, source=None, summary=None, category="manual", account_id=None, brand_id=None):

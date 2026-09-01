@@ -168,18 +168,89 @@ Whitespace only applies to accounts with direct sales (distributors).
 Contractors buy through distributors, so there's nothing to compare -- their
 value in this system is the visit history and the pull-through they drive.
 
+## Talking to Claude about your territory (the MCP bridge)
+
+This connects Claude Desktop to your territory database so you can just ask:
+
+> *"Who should I go see in Norfolk this week?"*
+> *"What have I talked about at Kelly Supply, and what's unfinished?"*
+> *"Which accounts are bleeding MAAX that I haven't seen in 60 days?"*
+> *"Log that call: Winsupply Norfolk, walked the Salo line with Jeff, follow up in two weeks."*
+
+**Setup (once):**
+
+1. Install [Claude Desktop](https://claude.ai/download) if you don't have it.
+2. Double-click **`setup_mcp.bat`** (Windows) or run `python setup_mcp.py` (Mac).
+   It works out the right paths for your computer and writes them into Claude
+   Desktop's settings. Anything else you already have connected is left alone,
+   and your old settings file is backed up first.
+3. **Quit Claude Desktop completely** -- not just closing the window. Right-click
+   its taskbar icon and choose Quit (or end it in Task Manager), then reopen it.
+4. Ask it a territory question.
+
+**Privacy.** The bridge runs on your machine and talks to Claude Desktop through
+a local pipe. It is not a website and nothing about it is reachable from the
+internet. Claude receives only the answer to the specific question you ask --
+never the whole database. If you ask "who should I see in Norfolk", it gets the
+Norfolk shortlist, nothing more.
+
+**What Claude can do through it:**
+
+| Tool | What it does |
+|------|--------------|
+| `territory_summary` | Overall state: counts, YTD vs prior year, top priorities, dormant branches |
+| `who_to_visit` | Ranked visit list with reasons; filter by market or tier |
+| `get_account` | One account in full: contacts, sales by brand, whitespace, follow-ups, visit notes |
+| `search_calls` | Search every visit note by text, account, brand or attendee |
+| `find_opportunities` | Dormant branches and whitespace |
+| `brand_performance` | How a line is doing across the territory |
+| `open_followups` | Everything owed, overdue flagged |
+| `recent_news` | Saved market/manufacturer news |
+| `line_card` | Your Big Rivers line card |
+| `list_markets` | Markets and account counts |
+| `log_call` | Log a visit by talking to it |
+| `add_followup` | Add a follow-up by talking to it |
+
+The two write tools (`log_call`, `add_followup`) only ever **add** records --
+nothing deletes or overwrites your history.
+
+**If Claude Desktop doesn't see it:** make sure you fully quit and reopened the
+app, and that the Flask app has been run at least once (that's what creates the
+database). Re-running `setup_mcp.bat` is harmless.
+
 ## How the News feed works
 
-Clicking **Refresh now** on the News page runs a public search (Google
-News' free RSS search, no account or API key required) for:
-- each brand/manufacturer you carry,
-- copper, steel, and PVC pipe resin prices,
-- plumbing/HVAC distribution industry news, and
-- construction/housing demand in Nebraska and Iowa.
+The News page has three refresh buttons, so you can pull just the part you
+want rather than waiting on every search:
 
-Only those search terms go out over the network -- nothing about your
-accounts or sales. Results are saved locally so they build up over time;
-duplicate articles (same URL) aren't added twice.
+- **Refresh NE/IA** -- business insight for your territory: commercial
+  construction and development projects, data center builds, groundbreakings
+  on hospitals/schools/apartments, economic development announcements, and
+  building permits and housing starts across Nebraska and Iowa. This is
+  pipeline: who's building what, where.
+- **Refresh partners** -- news for every line on your Big Rivers line card,
+  plus their corporate parents (A.O. Smith, Aalberts, American Bath Group,
+  Lincoln Electric, Zurn and the rest), since acquisitions and leadership
+  changes usually break under the parent's name rather than the brand's.
+- **Refresh everything** -- the above plus commodity prices (copper, steel,
+  PVC resin) for your pricing conversations.
+
+The manufacturer list comes from `brm/linecard.py`, transcribed from your line
+card PDF -- not from whatever brand strings happen to appear in a sales export.
+That matters in both directions: the card carries lines with no sales yet
+(**Shurjoint** currently has zero), and it correctly excludes **CircuitSolver**,
+which is a KS/MO/S IL line and not yours. Each entry also carries context terms
+so generic names like "Salo", "Harris" or "Stingray" return trade news instead
+of noise. Manufacturer articles are automatically tagged to the matching brand,
+so they show up on that brand's page.
+
+Searches use Google News' free RSS (no account or API key). Only those short
+search terms go out over the network -- nothing about your accounts or sales.
+Results are saved locally so they build up over time; duplicate articles (same
+URL) aren't added twice.
+
+If your line card changes, edit `brm/linecard.py` -- it's a plain list with a
+comment explaining each field.
 
 If you'd rather use a paid news API (e.g. NewsAPI.org) instead of or in
 addition to this, set the `BRM_NEWS_API_KEY` environment variable and
@@ -218,22 +289,25 @@ restore a backup, close the app, copy a file from `data/backups/` back to
 ## Project structure
 
 ```
-app.py              Flask app / all routes
+app.py                  Flask app / all routes
+mcp_server.py           Claude Desktop bridge (stdlib only)
+setup_mcp.py/.bat       One-click Claude Desktop setup
 brm/
-  db.py             SQLite connection + schema bootstrap
-  schema.sql         Database schema
-  importer.py        Parsers for the 3 source spreadsheets + merge logic
-  queries.py          Dashboard / sales-intelligence / rollup queries
-  intelligence.py     Priority scoring, whitespace, dormant branches, clustering
-  news.py             News search + manual entries
-templates/            Page templates
-static/                CSS/JS (no build step, no CDN, works offline)
-data/                  Your data -- gitignored, never committed
+  db.py                 SQLite connection, schema bootstrap + migrations
+  schema.sql            Database schema
+  importer.py           Parsers for the 3 source spreadsheets + merge logic
+  queries.py            Dashboard / sales-intelligence / rollup queries
+  intelligence.py       Priority scoring, whitespace, dormant branches, clustering
+  linecard.py           Your Big Rivers line card (edit this if it changes)
+  news.py               News search + manual entries
+templates/              Page templates
+static/                 CSS/JS (no build step, no CDN, works offline)
+data/                   Your data -- gitignored, never committed
   territory.db          The database
-  imports/                Copies of files you've uploaded via Import
-  backups/                 Backups you've created
+  imports/              Copies of files you've uploaded via Import
+  backups/              Backups you've created
 run.sh / run.bat        Start the app
-backup.sh / backup.bat   Back up your data
+backup.sh / backup.bat  Back up your data
 ```
 
 ## Troubleshooting

@@ -33,6 +33,7 @@ W_DECLINE_MAX = 55      # max points from YoY erosion
 W_FOLLOWUP_OVERDUE = 18  # per overdue follow-up
 W_FOLLOWUP_OPEN = 8      # per open (not yet due) follow-up
 W_FOLLOWUP_MAX = 36
+W_DORMANT_MAX = 50       # branch asleep while its sister branches sell
 
 
 def suggest_tier(ytd_sales):
@@ -60,7 +61,7 @@ def target_cadence(account):
     return TIER_CADENCE.get(tier, DEFAULT_CADENCE)
 
 
-def compute_priority(account, max_ytd=None, followup_counts=None):
+def compute_priority(account, max_ytd=None, followup_counts=None, dormant_info=None):
     """Score one account. Returns {score, reasons, tier, cadence, ...}.
 
     `account` is a dict from queries.list_accounts (already carries
@@ -125,13 +126,42 @@ def compute_priority(account, max_ytd=None, followup_counts=None):
             elif openish:
                 reasons.append(f"{openish} open follow-up{'s' if openish > 1 else ''}")
 
+    # 5. Dormant vs sister branches ------------------------------------------
+    # Auto-tiering keys off current sales, which would otherwise bury exactly
+    # the branches with the most upside: a branch doing $92 next to siblings
+    # doing $49K gets tiered D and a 120-day cadence. Undo that here.
+    if dormant_info:
+        healthy = dormant_info.get("chain_median") or 0
+        gap = dormant_info.get("gap") or 0
+        if healthy > 0:
+            pts = min(gap / healthy, 1.0) * W_DORMANT_MAX
+            score += pts
+            reasons.append(
+                f"dormant -- sister branches average {healthy:,.0f} vs this branch's {ytd:,.0f}"
+            )
+
     return {
         "score": round(score, 1),
         "reasons": reasons,
         "tier": tier,
         "cadence": cadence,
         "auto_tier": not (account.get("tier") or "").strip(),
+        "dormant": bool(dormant_info),
     }
+
+
+def priority_for_account(conn, account):
+    """Score a single account exactly the way the Plan page would."""
+    all_accounts = queries.list_accounts(conn)
+    max_ytd = max((a.get("ytd_sales") or 0) for a in all_accounts) if all_accounts else 1
+    fu = _followup_counts_by_account(conn).get(account["id"])
+    dormant = {d["account_id"]: d for d in dormant_branches(conn)}
+    return compute_priority(
+        account,
+        max_ytd=max_ytd or 1,
+        followup_counts=fu,
+        dormant_info=dormant.get(account["id"]),
+    )
 
 
 def _followup_counts_by_account(conn):
@@ -159,12 +189,18 @@ def prioritized_accounts(conn, market=None, tier=None, limit=None, include_zero_
         return []
     max_ytd = max((a.get("ytd_sales") or 0) for a in accounts) or 1
     followups = _followup_counts_by_account(conn)
+    dormant = {d["account_id"]: d for d in dormant_branches(conn)}
 
     scored = []
     for a in accounts:
         if not include_zero_sales and not (a.get("ytd_sales") or 0):
             continue
-        p = compute_priority(a, max_ytd=max_ytd, followup_counts=followups.get(a["id"]))
+        p = compute_priority(
+            a,
+            max_ytd=max_ytd,
+            followup_counts=followups.get(a["id"]),
+            dormant_info=dormant.get(a["id"]),
+        )
         if tier and p["tier"] != tier:
             continue
         a = dict(a)

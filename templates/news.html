@@ -9,20 +9,34 @@
       commodity prices, manufacturer moves, and market/demand signals for your lines
     </div>
   </div>
-  <form method="post" action="{{ url_for('news_refresh') }}">
-    <button class="btn" type="submit">Refresh now</button>
-  </form>
+  <div style="display:flex; gap:6px; flex-wrap:wrap;">
+    <form method="post" action="{{ url_for('news_refresh') }}">
+      <input type="hidden" name="scope" value="regional">
+      <button class="btn" type="submit">Refresh NE/IA</button>
+    </form>
+    <form method="post" action="{{ url_for('news_refresh') }}">
+      <input type="hidden" name="scope" value="manufacturers">
+      <button class="btn" type="submit">Refresh partners</button>
+    </form>
+    <form method="post" action="{{ url_for('news_refresh') }}">
+      <input type="hidden" name="scope" value="all">
+      <button class="btn btn-secondary" type="submit">Refresh everything</button>
+    </form>
+  </div>
 </div>
 
 <div class="small muted section">
-  Live refresh searches public news (Google News) for each brand you carry plus commodity/market terms
-  (copper, steel, PVC, plumbing &amp; HVAC distribution, construction demand). Only those short search
-  terms ever go out over the network -- none of your account or sales data is included.
+  <strong>NE/IA</strong> pulls business insight for your territory -- commercial construction,
+  development projects, data centers, permits and housing starts across Nebraska and Iowa.
+  <strong>Partners</strong> pulls news for the {{ line_count }} lines on your Big Rivers line card
+  (and their corporate parents, where acquisitions and leadership news actually break).
+  Only short public search terms go out over the network -- none of your account or sales data
+  is ever included.
 </div>
 
 <div class="filters">
   <a href="{{ url_for('news_page') }}" class="pill {{ 'pill-good' if not category else 'pill-neutral' }}">All</a>
-  {% for cat in ['commodity','manufacturer','market','demand','manual'] %}
+  {% for cat in ['regional','manufacturer','demand','commodity','market','manual'] %}
   <a href="{{ url_for('news_page', category=cat) }}" class="pill {{ 'pill-good' if category==cat else 'pill-neutral' }}">{{ cat }}</a>
   {% endfor %}
 </div>

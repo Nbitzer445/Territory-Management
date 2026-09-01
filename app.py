@@ -153,10 +153,7 @@ def account_detail(account_id):
     brands = conn.execute("SELECT id, name FROM brands ORDER BY name").fetchall()
     account_news = news.list_news(conn, account_id=account_id, limit=20)
 
-    all_accounts = queries.list_accounts(conn)
-    max_ytd = max((a.get("ytd_sales") or 0) for a in all_accounts) if all_accounts else 1
-    fu_counts = intelligence._followup_counts_by_account(conn).get(account_id)
-    priority = intelligence.compute_priority(account, max_ytd=max_ytd or 1, followup_counts=fu_counts)
+    priority = intelligence.priority_for_account(conn, account)
     whitespace = intelligence.whitespace_for_account(conn, account_id)
 
     return render_template(
@@ -418,15 +415,21 @@ def news_page():
     brands = conn.execute("SELECT id, name FROM brands WHERE category IS NULL OR category != 'admin' ORDER BY name").fetchall()
     accounts = conn.execute("SELECT id, name FROM accounts ORDER BY name").fetchall()
     last_refresh = news.last_refreshed(conn)
-    return render_template("news.html", items=items, brands=brands, accounts=accounts, category=category, last_refresh=last_refresh)
+    from brm import linecard
+    return render_template("news.html", items=items, brands=brands, accounts=accounts,
+                           category=category, last_refresh=last_refresh,
+                           line_count=len(linecard.active_lines()))
 
 
 @app.route("/news/refresh", methods=["POST"])
 def news_refresh():
     conn = get_db()
+    scope = request.form.get("scope", "all")
+    if scope not in news.SCOPES:
+        scope = "all"
     try:
-        summary = news.refresh_news(conn)
-        msg = f"Refreshed: {summary['items_added']} new article(s) from {summary['queries_run']} searches."
+        summary = news.refresh_news(conn, scope=scope)
+        msg = f"Refreshed ({scope}): {summary['items_added']} new article(s) from {summary['queries_run']} searches."
         if summary["errors"]:
             msg += f" ({len(summary['errors'])} search(es) failed -- check your internet connection.)"
         flash(msg, "success" if summary["items_added"] or not summary["errors"] else "error")
