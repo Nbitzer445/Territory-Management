@@ -15,6 +15,9 @@ from brm import db, importer, queries, news, intelligence
 
 app = Flask(__name__)
 app.secret_key = "brm-territory-hub-local-only"  # local single-user app; not security sensitive
+# Pick up edited templates without a restart, so an update applies as soon as
+# the files land.
+app.config["TEMPLATES_AUTO_RELOAD"] = True
 
 UPLOAD_DIR = db.DATA_DIR / "imports"
 
@@ -636,4 +639,13 @@ def _summary_message(kind, summary):
 if __name__ == "__main__":
     db.init_db()
     port = int(os.environ.get("PORT", 5000))
-    app.run(host="127.0.0.1", port=port, debug=os.environ.get("BRM_DEBUG") == "1")
+    # The reloader watches the program files and restarts automatically when
+    # update.bat replaces them -- so an update needs nothing but a browser
+    # refresh. The interactive debugger stays OFF: it would allow running
+    # arbitrary code through the browser, and it isn't needed for this.
+    app.run(
+        host="127.0.0.1",
+        port=port,
+        debug=os.environ.get("BRM_DEBUG") == "1",
+        use_reloader=True,
+    )

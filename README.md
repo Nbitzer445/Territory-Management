@@ -307,16 +307,45 @@ manually** on the News page to paste in an article or write your own note.
 
 ## Updating to a newer version of the app
 
-If you already have this running with data in it and you download a newer
-version of the code:
+**Double-click `update.bat`.** That's it.
 
-1. Keep your existing `data` folder -- **don't** delete or overwrite it. That's
-   where everything you've entered lives.
-2. Replace the code files (`app.py`, the `brm` folder, `templates`, `static`).
-3. Start the app as usual. Any new database columns are added automatically on
-   startup, in place, without touching your existing records.
+It downloads the current version, backs up your database and your existing
+program files, then replaces only the program files. Your `data` folder --
+database, imports, backups -- is never touched, so accounts, calls, contacts,
+follow-ups, groups and notes all survive exactly as you left them. New database
+columns are added in place on the next start.
 
-Backing up first (`backup.bat`) is never a bad idea before an update.
+If the app is running while you update, **it restarts itself within a few
+seconds** -- just refresh your browser. You don't need to close the black
+window.
+
+Two things worth knowing:
+
+- **It refuses to install anything that isn't this app.** If the download is
+  damaged or points at the wrong file, it says so and changes nothing.
+- **Every update is reversible.** Your previous program files are kept in
+  `data/code_backups/<date-time>/`, and the database is copied to
+  `data/backups/` before anything is written.
+
+If the download fails (no internet, a firewall in the way), grab the zip from
+GitHub by hand and point the updater at it:
+
+```
+python update.py --zip C:\path\to\the.zip
+```
+
+### The fast loop for changing things
+
+When you and Claude work out a change together:
+
+1. Claude builds it and pushes.
+2. You double-click **`update.bat`**.
+3. You **refresh the browser**.
+
+Your own work -- logging calls, checking off follow-ups, assigning groups,
+editing accounts, importing spreadsheets -- needs none of that. It's live the
+moment you do it, because every score and ranking is recalculated on each page
+load rather than cached.
 
 ## Backing up your data
 
@@ -350,7 +379,9 @@ data/                   Your data -- gitignored, never committed
   territory.db          The database
   imports/              Copies of files you've uploaded via Import
   backups/              Backups you've created
+  code_backups/         Previous program files, kept by each update
 run.sh / run.bat        Start the app
+update.py / update.bat  Install the latest version (never touches data/)
 backup.sh / backup.bat  Back up your data
 ```
 
